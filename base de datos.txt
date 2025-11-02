@@ -1,0 +1,101 @@
+Gabriel, [9/20/2025 10:12 PM]
+CREATE TYPE estado_civil_enum AS ENUM (
+  'SOLTERO',
+  'CASADO',
+  'DIVORCIADO',
+  'VIUDO'
+);
+
+CREATE TABLE usuarios (
+  user_id SERIAL PRIMARY KEY,
+  nombre VARCHAR(60) CHECK (char_length(nombre) >= 3), -- Nombre mínimo de 3 caracteres
+  correo VARCHAR(100) UNIQUE CHECK (correo ~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$'), -- Formato válido de correo electrónico
+  password VARCHAR(100) CHECK (char_length(password) >= 8), -- Contraseña mínima de 8 caracteres
+  direccion VARCHAR(200), -- Dirección libre
+  telefono VARCHAR(11) CHECK (char_length(telefono) = 11), -- Teléfono de 11 dígitos exactos
+  tipo_usuario INTEGER CHECK (tipo_usuario IN (0, 1)), -- 0 = usuario, 1 = administrador
+  estado INTEGER CHECK (estado IN (0, 1)), -- 0 = inactivo, 1 = activo
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP, -- Fecha automática
+  is_deleted INTEGER CHECK (is_deleted IN (0, 1)) -- 0 = activo, 1 = eliminado
+);
+
+CREATE TABLE departamentos (
+  department_id SERIAL PRIMARY KEY,
+  nombre VARCHAR(60) CHECK (char_length(nombre) >= 3), -- Nombre mínimo de 3 caracteres
+  descripcion VARCHAR(200), -- Descripción libre
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER CHECK (is_deleted IN (0, 1)) -- Eliminación lógica
+);
+
+CREATE TABLE cargos (
+  position_id SERIAL PRIMARY KEY,
+  nombre VARCHAR(50) CHECK (char_length(nombre) >= 3), -- Nombre mínimo de 3 caracteres
+  descripcion VARCHAR(200), -- Descripción libre
+  sueldo_base NUMERIC(10,2) CHECK (sueldo_base >= 0), -- Sueldo base no negativo
+  department_id INTEGER REFERENCES departamentos(department_id),
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER CHECK (is_deleted IN (0, 1)) -- Eliminación lógica
+);
+
+CREATE TABLE trabajadores (
+  worker_id SERIAL PRIMARY KEY,
+  nombre VARCHAR(60) CHECK (char_length(nombre) >= 3), -- Nombre mínimo de 3 caracteres
+  correo VARCHAR(100) UNIQUE CHECK (correo ~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$'), -- Formato válido de correo
+  documento VARCHAR(15) CHECK (char_length(documento) BETWEEN 6 AND 15), -- Documento entre 6 y 15 caracteres
+  fecha_nacimiento DATE, -- Validación externa
+  estado_civil estado_civil_enum,
+  direccion VARCHAR(200), -- Dirección libre
+  telefono VARCHAR(11) CHECK (char_length(telefono) = 11), -- Teléfono de 11 dígitos
+  cuenta_bancaria VARCHAR(20) CHECK (char_length(cuenta_bancaria) >= 10), -- Mínimo 10 caracteres
+  position_id INTEGER REFERENCES cargos(position_id),
+  is_active BOOLEAN DEFAULT TRUE, -- Estado activo
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER CHECK (is_deleted IN (0, 1)) -- Eliminación lógica
+);
+
+CREATE TABLE contratos (
+  contract_id SERIAL PRIMARY KEY,
+  workerid INTEGER REFERENCES trabajadores(worker_id),
+  tipo_contrato VARCHAR(20), -- Tipo libre
+  fecha_inicio DATE,
+  fecha_fin DATE,
+  salario_base NUMERIC(10,2) CHECK (salario_base >= 0), -- Salario no negativo
+  jornada_laboral INTEGER CHECK (jornada_laboral BETWEEN 1 AND 48), -- Horas semanales válidas
+  estado VARCHAR(10) CHECK (estado IN ('ACTIVO', 'FINALIZADO', 'SUSPENDIDO')), -- Estado controlado
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER CHECK (is_deleted IN (0, 1)) -- Eliminación lógica
+);
+
+CREATE TABLE nominas (
+  payroll_id SERIAL PRIMARY KEY,
+  worker_id INTEGER REFERENCES trabajadores(worker_id),
+  periodo VARCHAR(10) CHECK (char_length(periodo) >= 6), -- Mínimo 6 caracteres (Ej: '2025-09')
+  tipo_nomina VARCHAR(20), -- Tipo libre
+  estado_pago VARCHAR(15) CHECK (estado_pago IN ('PENDIENTE', 'PAGADO', 'RECHAZADO')), -- Estado controlado
+  total_bruto NUMERIC(12,2) CHECK (total_bruto >= 0), -- No negativo
+  total_neto NUMERIC(12,2) CHECK (total_neto >= 0), -- No negativo
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER CHECK (is_deleted IN (0, 1)) -- Eliminación lógica
+);
+
+Gabriel, [9/20/2025 10:12 PM]
+CREATE TABLE ajustes_nomina (
+  ajuste_id SERIAL PRIMARY KEY,
+  payroll_id INTEGER REFERENCES nominas(payroll_id),
+  tipo_ajuste VARCHAR(20) CHECK (tipo_ajuste IN ('BONO', 'DESCUENTO', 'RECARGO')), -- Tipo controlado
+  descripcion VARCHAR(200), -- Descripción libre
+  monto NUMERIC(10,2) CHECK (monto <> 0), -- No puede ser cero
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  is_deleted INTEGER CHECK (is_deleted IN (0, 1)) -- Eliminación lógica
+);
+
+CREATE TABLE historial_pago (
+  payment_id SERIAL PRIMARY KEY,
+  worker_id INTEGER REFERENCES trabajadores(worker_id),
+  payroll_id INTEGER REFERENCES nominas(payroll_id),
+  fecha_pago DATE, -- Validación externa
+  monto_pagado NUMERIC(12,2) CHECK (monto_pagado >= 0), -- No negativo
+  metodo_pago VARCHAR(20), -- Tipo libre
+  estado VARCHAR(15) CHECK (estado IN ('PAGADO', 'PENDIENTE', 'FALLIDO')), -- Estado controlado
+  createdat TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
