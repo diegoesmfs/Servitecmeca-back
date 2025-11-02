@@ -4,11 +4,11 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# 📁 Cargar .env desde la carpeta app/ (mismo nivel que database.py)
-BASE_DIR = Path(__file__).resolve().parent
+# Cargar .env desde la carpeta app/ (mismo nivel que database.py)
+BASE_DIR = Path(__file__).resolve().parent  # Esto apunta a la carpeta app/
 load_dotenv(BASE_DIR / ".env")
 
-# 🔍 Verificación de variables cargadas
+# Verificar que las variables se cargaron correctamente
 print("🎯 Ruta del .env:", BASE_DIR / ".env")
 print("🔍 Variables cargadas desde app/.env:")
 print(f"   DB_HOST: {os.getenv('DB_HOST')}")
@@ -17,10 +17,10 @@ print(f"   DB_USER: {os.getenv('DB_USER')}")
 print(f"   DB_PORT: {os.getenv('DB_PORT')}")
 
 def get_connection():
-    """📡 Intenta establecer conexión con la base de datos PostgreSQL usando variables de entorno"""
+    # Verificar que todas las variables estén presentes
     required_vars = ['DB_HOST', 'DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_PORT']
     missing_vars = [var for var in required_vars if not os.getenv(var)]
-
+    
     if missing_vars:
         print(f"❌ Variables de entorno faltantes: {missing_vars}")
         return None
@@ -39,7 +39,3 @@ def get_connection():
     except Exception as e:
         print("❌ Error al conectar a la base de datos:", e)
         return None
-
-# 🧪 Ejecutar conexión si se corre directamente
-if __name__ == "__main__":
-    get_connection()

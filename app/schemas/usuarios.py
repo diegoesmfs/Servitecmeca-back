@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-
+from pydantic import BaseModel, Field
 class UsuarioSchema(BaseModel):
     user_id: int
     nombre: str
@@ -12,6 +12,7 @@ class UsuarioSchema(BaseModel):
     createdat: datetime
     is_deleted: int
 
+
 class UsuarioCreate(BaseModel):
     nombre: str
     correo: str
@@ -19,4 +20,6 @@ class UsuarioCreate(BaseModel):
     telefono: str
     tipo_usuario: int
     estado: int
+    contrasena: str  # ✅ actualizado
+
 

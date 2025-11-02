@@ -5,7 +5,6 @@ import psycopg2
 
 router = APIRouter()
 
-# 🧩 Listar todos los departamentos
 @router.get("/departamentos", response_model=list[DepartamentoSchema])
 def obtener_departamentos():
     conn = get_connection()
@@ -24,7 +23,6 @@ def obtener_departamentos():
         cursor.close()
         conn.close()
 
-# 🔍 Obtener un departamento por ID
 @router.get("/departamentos/{departmento_id}", response_model=DepartamentoSchema)
 def obtener_departamento_por_id(departmento_id: int):
     conn = get_connection()
@@ -43,7 +41,6 @@ def obtener_departamento_por_id(departmento_id: int):
         cursor.close()
         conn.close()
 
-# ✨ Crear un nuevo departamento
 @router.post("/departamentos", response_model=DepartamentoSchema, status_code=status.HTTP_201_CREATED)
 def crear_departamento(departamento: DepartamentoCreate):
     conn = get_connection()
@@ -70,7 +67,6 @@ def crear_departamento(departamento: DepartamentoCreate):
         cursor.close()
         conn.close()
 
-# 🛠️ Actualizar un departamento existente
 @router.put("/departamentos/{departmento_id}", response_model=DepartamentoSchema)
 def actualizar_departamento(departmento_id: int, departamento: DepartamentoCreate):
     conn = get_connection()
@@ -101,7 +97,6 @@ def actualizar_departamento(departmento_id: int, departamento: DepartamentoCreat
         cursor.close()
         conn.close()
 
-# 🗑️ Eliminación lógica de un departamento
 @router.delete("/departamentos/{departmento_id}", status_code=status.HTTP_200_OK)
 def eliminar_departamento(departmento_id: int):
     conn = get_connection()

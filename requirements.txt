@@ -1,0 +1,13 @@
+# Dependencias principales usadas en el proyecto "Proyectonomina"
+fastapi==0.95.2
+uvicorn[standard]==0.22.0
+pydantic<2,>=1.10.12
+psycopg2-binary==2.9.6
+python-dotenv==1.0.0
+passlib[bcrypt]==1.7.4
+PyJWT==2.8.0
+python-multipart==0.0.6
+
+# Opcionales / útiles en despliegue y testing
+gunicorn==20.1.0
+pytest==7.4.0

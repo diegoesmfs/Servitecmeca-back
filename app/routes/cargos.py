@@ -5,7 +5,6 @@ import psycopg2
 
 router = APIRouter()
 
-# 🧩 Listar todos los cargos
 @router.get("/cargos", response_model=list[CargoSchema])
 def obtener_cargos():
     conn = get_connection()
@@ -24,15 +23,14 @@ def obtener_cargos():
         cursor.close()
         conn.close()
 
-# 🔍 Obtener un cargo por ID
-@router.get("/cargos/{position_id}", response_model=CargoSchema)
-def obtener_cargo_por_id(position_id: int):
+@router.get("/cargos/{posicion_id}", response_model=CargoSchema)
+def obtener_cargo_por_id(posicion_id: int):
     conn = get_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
     cursor = conn.cursor()
     try:
-        cursor.execute("SELECT * FROM cargos WHERE position_id = %s AND is_deleted = 0", (position_id,))
+        cursor.execute("SELECT * FROM cargos WHERE posicion_id = %s AND is_deleted = 0", (posicion_id,))
         fila = cursor.fetchone()
         if not fila:
             raise HTTPException(status_code=404, detail="Cargo no encontrado")
@@ -43,7 +41,6 @@ def obtener_cargo_por_id(position_id: int):
         cursor.close()
         conn.close()
 
-# ✨ Crear un nuevo cargo
 @router.post("/cargos", response_model=CargoSchema, status_code=status.HTTP_201_CREATED)
 def crear_cargo(cargo: CargoCreate):
     conn = get_connection()
@@ -72,9 +69,8 @@ def crear_cargo(cargo: CargoCreate):
         cursor.close()
         conn.close()
 
-# 🛠️ Actualizar un cargo existente
-@router.put("/cargos/{position_id}", response_model=CargoSchema)
-def actualizar_cargo(position_id: int, cargo: CargoCreate):
+@router.put("/cargos/{posicion_id}", response_model=CargoSchema)
+def actualizar_cargo(posicion_id: int, cargo: CargoCreate):
     conn = get_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
@@ -82,7 +78,7 @@ def actualizar_cargo(position_id: int, cargo: CargoCreate):
     query = """
         UPDATE cargos
         SET nombre = %s, descripcion = %s, sueldo_base = %s, departmento_id = %s
-        WHERE position_id = %s AND is_deleted = 0
+        WHERE posicion_id = %s AND is_deleted = 0
         RETURNING *
     """
     try:
@@ -91,7 +87,7 @@ def actualizar_cargo(position_id: int, cargo: CargoCreate):
             cargo.descripcion,
             cargo.sueldo_base,
             cargo.departmento_id,
-            position_id
+            posicion_id
         ))
         actualizado = cursor.fetchone()
         if not actualizado:
@@ -105,16 +101,15 @@ def actualizar_cargo(position_id: int, cargo: CargoCreate):
         cursor.close()
         conn.close()
 
-# 🗑️ Eliminación lógica de un cargo
-@router.delete("/cargos/{position_id}", status_code=status.HTTP_200_OK)
-def eliminar_cargo(position_id: int):
+@router.delete("/cargos/{posicion_id}", status_code=status.HTTP_200_OK)
+def eliminar_cargo(posicion_id: int):
     conn = get_connection()
     if not conn:
         raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
     cursor = conn.cursor()
-    query = "UPDATE cargos SET is_deleted = 1 WHERE position_id = %s"
+    query = "UPDATE cargos SET is_deleted = 1 WHERE posicion_id = %s"
     try:
-        cursor.execute(query, (position_id,))
+        cursor.execute(query, (posicion_id,))
         if cursor.rowcount == 0:
             raise HTTPException(status_code=404, detail="Cargo no encontrado para eliminar")
         conn.commit()
