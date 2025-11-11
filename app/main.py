@@ -2,6 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import users as users_router
+from app.routes import departamento as departamento_router
 from app.db.connection import connect_to_db, disconnect_from_db
 
 app = FastAPI(title=os.getenv("PROJECT_NAME", "Nuevo Backend"))
@@ -18,6 +19,7 @@ app.add_middleware(
 
 # Routers
 app.include_router(users_router.router, prefix="/api/v1/users", tags=["users"]) 
+app.include_router(departamento_router.router)
 
 
 @app.get("/")
