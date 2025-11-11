@@ -30,10 +30,7 @@ env/
 ENV/
 app/venv/
 
-# Environment variables
-.env
-.env.*
-app/.env
+
 
 # PyCharm
 .idea/
