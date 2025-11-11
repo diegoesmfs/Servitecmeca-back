@@ -1,32 +1,32 @@
-from fastapi import FastAPI
-
-from app.routes import usuarios
-from app.routes import trabajador
-from app.routes import cargos
-from app.routes import departamento
-
-from fastapi import Depends
-from app.utils.security import verify_token
-from app.routes import auth
-
-
-
-from dotenv import load_dotenv
-from pathlib import Path
 import os
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from app.routes import users as users_router
+from app.db.connection import connect_to_db, disconnect_from_db
 
-# Cargar .env desde la carpeta app/
-BASE_DIR = Path(__file__).resolve().parent  # Carpeta app/
-load_dotenv(BASE_DIR / ".env")
+app = FastAPI(title=os.getenv("PROJECT_NAME", "Nuevo Backend"))
 
-# Verificar carga
-print("✅ main.py - Variables cargadas:")
-print(f"   DB_HOST: {os.getenv('DB_HOST')}")
+# CORS (ajusta orígenes en producción)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-app = FastAPI()
-app.include_router(usuarios.router, prefix="/api", tags=["Usuarios"])
-app.include_router(trabajador.router, prefix="/api", tags=["Trabajadores"])
-app.include_router(cargos.router, prefix="/api", tags=["Cargos"])
-app.include_router(departamento.router, prefix="/api", tags=["departamentos"])
-app.include_router(auth.router, prefix="/auth", tags=["Autenticación"])
+@app.on_event("startup")
+async def startup_event():
+    await connect_to_db(app)
 
+@app.on_event("shutdown")
+async def shutdown_event():
+    await disconnect_from_db(app)
+
+# Routers
+app.include_router(users_router.router, prefix="/api/v1/users", tags=["users"]) 
+
+
+@app.get("/")
+async def root():
+    return {"message": "API (sin ORM) está corriendo"}
