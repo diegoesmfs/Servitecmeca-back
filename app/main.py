@@ -2,7 +2,16 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import users as users_router
+# EJEMPLO: En tu main.py o app.py
+from fastapi import FastAPI
+from app.routes import cargo # Asegúrate de que esta ruta sea correcta
+
+app = FastAPI()
+
+# Esto registra las rutas de /cargos
+app.include_router(cargo.router)
 from app.db.connection import connect_to_db, disconnect_from_db
+
 
 app = FastAPI(title=os.getenv("PROJECT_NAME", "Nuevo Backend"))
 
@@ -25,6 +34,7 @@ async def shutdown_event():
 
 # Routers
 app.include_router(users_router.router, prefix="/api/v1/users", tags=["users"]) 
+app.include_router(cargo.router, prefix="/api/v1/cargos", tags=["cargos"])
 
 
 @app.get("/")

@@ -3,8 +3,8 @@ uvicorn[standard]
 asyncpg
 python-dotenv
 passlib[bcrypt]
-pydantic
+pydantic[email]>=2.0.0,<3
 pytest
 httpx
-pydantic[email]
-PyJW
+email-validator>=1.3.0,<2
+PyJWT>=2.0.0,<3
