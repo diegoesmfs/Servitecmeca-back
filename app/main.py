@@ -15,13 +15,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.on_event("startup")
-async def startup_event():
-    await connect_to_db(app)
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    await disconnect_from_db(app)
 
 # Routers
 app.include_router(users_router.router, prefix="/api/v1/users", tags=["users"]) 
