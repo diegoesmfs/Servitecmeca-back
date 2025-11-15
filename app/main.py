@@ -4,8 +4,9 @@ import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import users as users_router
 from app.routes import departamento as departamento_router
+from app.routes import trabajador as Trabajador_router
+from app.routes import usuario as Usuario_router
 from app.db.connection import connect_to_db, disconnect_from_db # Mantener importaciones
 
 # 🌟 1. DEFINIR EL GESTOR DE CONTEXTO ASÍNCRONO (LIFESPAN)
@@ -43,11 +44,9 @@ app.add_middleware(
 )
 
 
-# Routers
-app.include_router(users_router.router, prefix="/api/v1/users", tags=["users"]) 
-app.include_router(departamento_router.router)
+
+app.include_router(departamento_router.router, prefix="/api/v1", tags=["Departamentos"])
+app.include_router(Trabajador_router.router, prefix="/api/v1", tags=["Trabajadores"])
+app.include_router(Usuario_router.router, prefix="/api/v1", tags=["Usuarios"])    
 
 
-@app.get("/")
-async def root():
-    return {"message": "API (sin ORM) está corriendo"}
