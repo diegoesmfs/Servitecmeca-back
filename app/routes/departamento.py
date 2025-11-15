@@ -59,8 +59,8 @@ async def update_existing_departamento(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
-# DELETE /departamentos/{id} (Eliminación Lógica)
-@router.delete("/{dep_id}", status_code=status.HTTP_204_NO_CONTENT)
+# patch /departamentos/{id} (Eliminación Lógica)
+@router.patch("/{dep_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_departamento(dep_id: str, conn: asyncpg.Connection = Depends(get_connection)):
     """Deshabilita lógicamente un departamento (establece estado a 0)."""
     deactivate_data = DepartamentoUpdate(estado=0)
