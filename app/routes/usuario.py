@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 import asyncpg
 from typing import List, Optional
-from app.schemas.usuario import UsuarioCreate, UsuarioUpdate, UsuarioOut, UsuarioLogin
+from app.schemas.usuario import UsuarioCreate, UsuarioUpdate, UsuarioOut, UsuarioLogin, TokenResponse
 from app.controllers import usuario_controller
 # Asegúrate de que esta ruta sea correcta para tu proyecto:
 from app.db.connection import get_connection 
@@ -76,7 +76,7 @@ async def deactivate_usuario(usr_id: int, conn: asyncpg.Connection = Depends(get
 
 # --- Endpoint de Autenticación (Ejemplo) ---
 
-@router.post("/login", response_model=UsuarioOut) # Típicamente retornaría un Token
+@router.post("/login", response_model=TokenResponse)
 async def login_for_access_token(user_in: UsuarioLogin, conn: asyncpg.Connection = Depends(get_connection)):
     """Verifica credenciales de usuario."""
     usuario = await usuario_controller.get_usuario_by_correo(conn, user_in.correo)
@@ -88,5 +88,8 @@ async def login_for_access_token(user_in: UsuarioLogin, conn: asyncpg.Connection
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Aquí iría la lógica de generación de tokens JWT
-    return usuario
+    # Generar token JWT y devolverlo
+    from app.core.security import create_access_token
+
+    access_token = create_access_token({"sub": usuario.correo})
+    return {"access_token": access_token, "token_type": "bearer"}

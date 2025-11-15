@@ -127,3 +127,25 @@ async def deactivate_trabajador(conn: asyncpg.Connection, trb_id: int) -> Option
     """Realiza una eliminación lógica (establece estado a 0) de un trabajador."""
     deactivate_data = TrabajadorUpdate(estado=0)
     return await update_trabajador(conn, trb_id, deactivate_data)
+
+
+# --- 6. Contar trabajadores por departamento ---
+async def count_trabajadores_by_departamento(
+    conn: asyncpg.Connection, id_departamento: str, activo: Optional[bool] = None
+) -> int:
+    """Retorna el número de trabajadores en un departamento.
+
+    - Si `activo` es True cuenta solo trabajadores con estado=1.
+    - Si `activo` es False cuenta solo estado=0.
+    - Si `activo` es None cuenta todos los estados.
+    """
+    values = [id_departamento]
+    if activo is None:
+        query = "SELECT COUNT(*) as total FROM trabajador WHERE id_departamento = $1;"
+        row = await conn.fetchrow(query, *values)
+        return int(row["total"]) if row else 0
+
+    estado_val = 1 if activo else 0
+    query = "SELECT COUNT(*) as total FROM trabajador WHERE id_departamento = $1 AND estado = $2;"
+    row = await conn.fetchrow(query, id_departamento, estado_val)
+    return int(row["total"]) if row else 0

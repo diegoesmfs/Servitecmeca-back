@@ -2,9 +2,10 @@ fastapi
 uvicorn[standard]
 asyncpg
 python-dotenv
-passlib[bcrypt]
-pydantic
+passlib[argon2]
+pydantic[email]>=2.0.0,<3
 pytest
 httpx
-pydantic[email]
-PyJW
+email-validator>=2.0.0,<3
+PyJWT>=2.0.0,<3
+argon2-cffi>=21.3.0

@@ -4,6 +4,7 @@ import asyncpg
 from typing import List, Optional
 from app.schemas.departamento import DepartamentoCreate, DepartamentoUpdate, DepartamentoOut
 from app.controllers import departamento_controller
+from app.controllers import trabajador_controller
 # Asegúrate de que esta ruta sea correcta para tu proyecto:
 from app.db.connection import get_connection 
 
@@ -72,3 +73,24 @@ async def deactivate_departamento(dep_id: str, conn: asyncpg.Connection = Depend
         return
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al deshabilitar: {e}")
+
+
+# GET /departamentos/{id}/trabajadores/count
+@router.get("/{dep_id}/trabajadores/count")
+async def count_trabajadores(
+    dep_id: str,
+    conn: asyncpg.Connection = Depends(get_connection),
+    include_inactivos: bool = Query(False, description="Si True incluye trabajadores inactivos; por defecto False cuenta solo activos")
+):
+    """Devuelve la cantidad de trabajadores en el departamento.
+
+    Por defecto cuenta solo trabajadores activos (estado=1). Si
+    `include_inactivos=true`, contará también los inactivos.
+    """
+    # Si include_inactivos es True -> contamos todos (activo=None)
+    activo = None if include_inactivos else True
+    try:
+        total = await trabajador_controller.count_trabajadores_by_departamento(conn, dep_id, activo=activo)
+        return {"id_departamento": dep_id, "total_trabajadores": total}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al contar trabajadores: {e}")

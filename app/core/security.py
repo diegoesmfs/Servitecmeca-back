@@ -1,11 +1,15 @@
-from passlib.context import CryptContext
+"""Compatibility shim for security helpers.
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+This module re-exports the hashing and JWT helper functions from
+`app.core.passwords` and `app.core.jwt` so existing imports continue to work.
+"""
 
+from .passwords import hash_password, verify_password
+from .jwt import create_access_token, decode_access_token
 
-def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+__all__ = [
+    "hash_password",
+    "verify_password",
+    "create_access_token",
+    "decode_access_token",
+]

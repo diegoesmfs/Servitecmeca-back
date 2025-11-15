@@ -3,22 +3,9 @@ from typing import List, Optional
 from datetime import datetime
 import asyncpg
 from asyncpg.exceptions import UniqueViolationError, CheckViolationError, NotNullViolationError
-
+from app.core.security import hash_password, verify_password
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate
 from app.models.usuario import Usuario
-
-# --- MOCKUP DE FUNCIONES DE SEGURIDAD (DEBE REEMPLAZARSE) ---
-# Necesitas implementar estas funciones con una lib como passlib/bcrypt
-def hash_password(password: str) -> str:
-    """Hashea la contraseña (USAR LIBRERÍA DE HASHING REAL)."""
-    # Ejemplo simple para que funcione el código, NO USAR EN PRODUCCIÓN
-    return f"hashed_{password}" 
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verifica la contraseña (USAR LIBRERÍA DE HASHING REAL)."""
-    # Ejemplo simple para que funcione el código, NO USAR EN PRODUCCIÓN
-    return hashed_password == f"hashed_{plain_password}"
-# -------------------------------------------------------------------
 
 # --- 1. Crear Usuario ---
 async def create_usuario(conn: asyncpg.Connection, usr_in: UsuarioCreate) -> Optional[Usuario]:
