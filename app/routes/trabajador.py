@@ -63,7 +63,7 @@ async def update_existing_trabajador(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error inesperado: {e}")
 
 # DELETE /trabajadores/{id} (Eliminación Lógica)
-@router.delete("/{trb_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{trb_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_trabajador(trb_id: int, conn: asyncpg.Connection = Depends(get_connection)):
     """Deshabilita lógicamente un trabajador (establece estado a 0)."""
     try:

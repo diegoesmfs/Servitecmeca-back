@@ -63,7 +63,7 @@ async def update_existing_usuario(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
 # DELETE /usuarios/{id} (Eliminación Lógica)
-@router.delete("/{usr_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch("/{usr_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_usuario(usr_id: int, conn: asyncpg.Connection = Depends(get_connection)):
     """Deshabilita lógicamente un usuario (establece estado a 0)."""
     try:
