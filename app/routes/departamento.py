@@ -1,118 +1,96 @@
-from fastapi import APIRouter, HTTPException, status
-from app.schemas.departamento import DepartamentoSchema, DepartamentoCreate
-from app.database import get_connection
-import psycopg2
+# routes/departamento.py (FINAL)
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+import asyncpg
+from typing import List, Optional
+from app.schemas.departamento import DepartamentoCreate, DepartamentoUpdate, DepartamentoOut
+from app.controllers import departamento_controller
+from app.controllers import trabajador_controller
+# Asegúrate de que esta ruta sea correcta para tu proyecto:
+from app.db.connection import get_connection 
 
-router = APIRouter()
+router = APIRouter(prefix="/departamentos", tags=["Departamentos"])
 
-@router.get("/departamentos", response_model=list[DepartamentoSchema])
-def obtener_departamentos():
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
+# POST /departamentos
+@router.post("/", response_model=DepartamentoOut, status_code=status.HTTP_201_CREATED)
+async def create_new_departamento(dep_in: DepartamentoCreate, conn: asyncpg.Connection = Depends(get_connection)):
+    """Crea un nuevo departamento."""
     try:
-        cursor.execute("SELECT * FROM departamentos WHERE is_deleted = 0")
-        resultados = cursor.fetchall()
-        if not resultados:
-            raise HTTPException(status_code=404, detail="No se encontraron departamentos")
-        return [DepartamentoSchema(**fila) for fila in resultados]
-    except psycopg2.Error as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener departamentos: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+        departamento = await departamento_controller.create_departamento(conn, dep_in)
+        return departamento
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error inesperado: {e}")
 
-@router.get("/departamentos/{departmento_id}", response_model=DepartamentoSchema)
-def obtener_departamento_por_id(departmento_id: int):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT * FROM departamentos WHERE departmento_id = %s AND is_deleted = 0", (departmento_id,))
-        fila = cursor.fetchone()
-        if not fila:
-            raise HTTPException(status_code=404, detail="Departamento no encontrado")
-        return DepartamentoSchema(**fila)
-    except psycopg2.Error as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener departamento: {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-@router.post("/departamentos", response_model=DepartamentoSchema, status_code=status.HTTP_201_CREATED)
-def crear_departamento(departamento: DepartamentoCreate):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    query = """
-        INSERT INTO departamentos (nombre, descripcion, createdat, is_deleted)
-        VALUES (%s, %s, NOW(), 0)
-        RETURNING *
+# GET /departamentos (CON PAGINACIÓN)
+@router.get("/", response_model=List[DepartamentoOut])
+async def list_all_departamentos(
+    conn: asyncpg.Connection = Depends(get_connection),
+    skip: int = Query(0, ge=0, description="Número de registros a saltar (offset)."),
+    limit: int = Query(100, gt=0, le=500, description="Máximo número de registros a retornar (limit)."),
+    activo: Optional[bool] = Query(None, description="Filtrar por estado: True (activos=1), False (inactivos=0), None (todos).")
+):
     """
-    try:
-        cursor.execute(query, (
-            departamento.nombre,
-            departamento.descripcion
-        ))
-        nuevo = cursor.fetchone()
-        conn.commit()
-        return DepartamentoSchema(**nuevo)
-    except psycopg2.Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al crear departamento: {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-@router.put("/departamentos/{departmento_id}", response_model=DepartamentoSchema)
-def actualizar_departamento(departmento_id: int, departamento: DepartamentoCreate):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    query = """
-        UPDATE departamentos
-        SET nombre = %s, descripcion = %s
-        WHERE departmento_id = %s AND is_deleted = 0
-        RETURNING *
+    Obtiene la lista de departamentos con opciones de paginación y filtro por estado.
     """
-    try:
-        cursor.execute(query, (
-            departamento.nombre,
-            departamento.descripcion,
-            departmento_id
-        ))
-        actualizado = cursor.fetchone()
-        if not actualizado:
-            raise HTTPException(status_code=404, detail="Departamento no encontrado para actualizar")
-        conn.commit()
-        return DepartamentoSchema(**actualizado)
-    except psycopg2.Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al actualizar departamento: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+    return await departamento_controller.list_departamentos(conn, skip=skip, limit=limit, activo=activo)
 
-@router.delete("/departamentos/{departmento_id}", status_code=status.HTTP_200_OK)
-def eliminar_departamento(departmento_id: int):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    query = "UPDATE departamentos SET is_deleted = 1 WHERE departmento_id = %s"
+# GET /departamentos/{id}
+@router.get("/{dep_id}", response_model=DepartamentoOut)
+async def get_single_departamento(dep_id: str, conn: asyncpg.Connection = Depends(get_connection)):
+    """Obtiene los detalles de un departamento por su ID."""
+    departamento = await departamento_controller.get_departamento_by_id(conn, dep_id)
+    if not departamento:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Departamento no encontrado")
+    return departamento
+
+# PUT /departamentos/{id}
+@router.put("/{dep_id}", response_model=DepartamentoOut)
+async def update_existing_departamento(
+    dep_id: str, 
+    dep_update: DepartamentoUpdate, 
+    conn: asyncpg.Connection = Depends(get_connection)
+):
+    """Actualiza campos de un departamento existente."""
     try:
-        cursor.execute(query, (departmento_id,))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Departamento no encontrado para eliminar")
-        conn.commit()
-        return {"detail": "Departamento eliminado correctamente"}
-    except psycopg2.Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al eliminar departamento: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+        departamento = await departamento_controller.update_departamento(conn, dep_id, dep_update)
+        if not departamento:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Departamento no encontrado")
+        return departamento
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
+# patch /departamentos/{id} (Eliminación Lógica)
+@router.patch("/{dep_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def deactivate_departamento(dep_id: str, conn: asyncpg.Connection = Depends(get_connection)):
+    """Deshabilita lógicamente un departamento (establece estado a 0)."""
+    deactivate_data = DepartamentoUpdate(estado=0)
+    
+    try:
+        departamento = await departamento_controller.update_departamento(conn, dep_id, deactivate_data)
+        if not departamento:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Departamento no encontrado")
+        return
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al deshabilitar: {e}")
+
+
+# GET /departamentos/{id}/trabajadores/count
+@router.get("/{dep_id}/trabajadores/count")
+async def count_trabajadores(
+    dep_id: str,
+    conn: asyncpg.Connection = Depends(get_connection),
+    include_inactivos: bool = Query(False, description="Si True incluye trabajadores inactivos; por defecto False cuenta solo activos")
+):
+    """Devuelve la cantidad de trabajadores en el departamento.
+
+    Por defecto cuenta solo trabajadores activos (estado=1). Si
+    `include_inactivos=true`, contará también los inactivos.
+    """
+    # Si include_inactivos es True -> contamos todos (activo=None)
+    activo = None if include_inactivos else True
+    try:
+        total = await trabajador_controller.count_trabajadores_by_departamento(conn, dep_id, activo=activo)
+        return {"id_departamento": dep_id, "total_trabajadores": total}
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error al contar trabajadores: {e}")

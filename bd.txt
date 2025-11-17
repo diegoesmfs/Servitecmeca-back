@@ -1,0 +1,183 @@
+-- ######################################################################
+-- PASO 0: LIMPIEZA INICIAL
+-- Elimina las tablas existentes para una creación limpia y ordenada.
+-- ######################################################################
+
+DROP TABLE IF EXISTS concepto_nomina;
+DROP TABLE IF EXISTS nomina_detalle;
+DROP TABLE IF EXISTS nomina_general;
+DROP TABLE IF EXISTS usuario;
+DROP TABLE IF EXISTS trabajador;
+DROP TABLE IF EXISTS departamento;
+DROP TABLE IF EXISTS cargos;
+
+
+-- ######################################################################
+-- PASO 1: CREACIÓN DE TABLAS BASE (SIN FKs INTERDEPENDIENTES)
+-- ######################################################################
+
+-- 1A. TABLA: cargos (Roles Laborales)
+CREATE TABLE cargos (
+    id_cargo VARCHAR(10) PRIMARY KEY,
+    titulo VARCHAR(100) UNIQUE NOT NULL,
+    descripcion TEXT,
+    nivel SMALLINT NOT NULL,
+    salario_base NUMERIC(10, 2) NOT NULL,
+    salario_maximo NUMERIC(10, 2) NOT NULL,
+    competencias TEXT,
+    estado SMALLINT NOT NULL DEFAULT 1,
+    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_nivel_valido CHECK (nivel BETWEEN 0 AND 4),
+    CONSTRAINT check_salario_base_positivo CHECK (salario_base > 0),
+    CONSTRAINT check_rango_salarial CHECK (salario_maximo >= salario_base),
+    CONSTRAINT check_estado_cargo_valido CHECK (estado IN (0, 1))
+);
+
+-- 1B. TABLA: departamento (Estructura Organizacional)
+CREATE TABLE departamento (
+    id_departamento VARCHAR(10) PRIMARY KEY,
+    nombre VARCHAR(100) UNIQUE NOT NULL,
+    descripcion TEXT,
+    jefe_departamento INT UNIQUE, -- Temporalmente sin FK
+    presupuesto_anual NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    telefono VARCHAR(15),
+    email VARCHAR(150),
+    ubicacion VARCHAR(100),
+    capacidad_empleados SMALLINT NOT NULL,
+    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    estado SMALLINT NOT NULL DEFAULT 1,
+    CONSTRAINT check_presupuesto_positivo CHECK (presupuesto_anual >= 0),
+    CONSTRAINT check_capacidad_positiva CHECK (capacidad_empleados > 0),
+    CONSTRAINT check_estado_departamento_valido CHECK (estado IN (0, 1))
+);
+
+-- 1C. TABLA: trabajador (Datos Personales y Laborales)
+CREATE TABLE trabajador (
+    id_trabajador SERIAL PRIMARY KEY,
+    documento VARCHAR(20) UNIQUE NOT NULL,
+    nombre VARCHAR(50) NOT NULL,
+    apellido VARCHAR(50) NOT NULL,
+    correo VARCHAR(150) UNIQUE NOT NULL,
+    telefono VARCHAR(15),
+    direccion VARCHAR(255),
+    id_departamento VARCHAR(10) NOT NULL, -- Campo para la FK
+    id_cargo VARCHAR(10) NOT NULL,        -- Campo para la FK
+    salario NUMERIC(10, 2) NOT NULL,
+    tipo_contrato SMALLINT NOT NULL,
+    creado DATE NOT NULL,
+    habilidades_competencias TEXT,
+    estado SMALLINT NOT NULL DEFAULT 1,
+    CONSTRAINT check_salario_positivo CHECK (salario >= 0),
+    CONSTRAINT check_tipo_contrato_valido CHECK (tipo_contrato IN (0, 1, 2, 3)),
+    CONSTRAINT check_fecha_creacion_valida CHECK (creado <= CURRENT_DATE),
+    CONSTRAINT check_estado_trabajador_valido CHECK (estado IN (0, 1))
+);
+
+-- 1D. TABLA: usuario (Acceso al Sistema)
+CREATE TABLE usuario (
+    id_usuario SERIAL PRIMARY KEY,
+    nombre VARCHAR(100) NOT NULL,
+    correo VARCHAR(150) UNIQUE NOT NULL,
+    documento VARCHAR(20) UNIQUE NOT NULL,
+    id_trabajador INT UNIQUE NOT NULL, -- Campo para la FK
+    rol VARCHAR(20) NOT NULL,
+    contrasena VARCHAR(255) NOT NULL,
+    estado SMALLINT NOT NULL DEFAULT 1,
+    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_rol_valido CHECK (rol IN ('administrador', 'usuario')),
+    CONSTRAINT check_estado_usuario_valido CHECK (estado IN (0, 1)),
+    -- FK que sí puede ser definida en línea
+    CONSTRAINT fk_trabajador_usuario
+        FOREIGN KEY (id_trabajador)
+        REFERENCES trabajador(id_trabajador)
+);
+
+-- 1E. TABLA: nomina_general (Registro de Pagos por Período/Departamento)
+CREATE TABLE nomina_general (
+    id_nomina VARCHAR(20) PRIMARY KEY,
+    periodo DATE NOT NULL,
+    id_departamento VARCHAR(10) NOT NULL, -- Campo para la FK
+    fecha_pago DATE NOT NULL,
+    presupuesto_utilizado NUMERIC(15, 2) NOT NULL DEFAULT 0,
+    impuesto_renta_total NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    seguro_social_total NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    estado SMALLINT NOT NULL DEFAULT 1,
+    estado_pago SMALLINT NOT NULL DEFAULT 0,
+    observaciones TEXT,
+    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_estado_nomina_valido CHECK (estado IN (0, 1)),
+    CONSTRAINT check_estado_pago_valido CHECK (estado_pago BETWEEN 0 AND 3),
+    CONSTRAINT check_presupuesto_utilizado_positivo CHECK (presupuesto_utilizado >= 0)
+);
+
+-- 1F. TABLA: nomina_detalle (Detalle de Pago por Trabajador)
+CREATE TABLE nomina_detalle (
+    id_detalle_nomina VARCHAR(20) PRIMARY KEY,
+    id_nomina VARCHAR(20) NOT NULL,    -- Campo para la FK
+    id_trabajador INT NOT NULL,        -- Campo para la FK
+    salario_base NUMERIC(10, 2) NOT NULL,
+    total_remuneraciones NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    total_deducciones NUMERIC(10, 2) NOT NULL DEFAULT 0,
+    salario_neto NUMERIC(10, 2) NOT NULL,
+    estado SMALLINT NOT NULL DEFAULT 1,
+    estado_pago SMALLINT NOT NULL DEFAULT 0,
+    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_salario_base_positivo_detalle CHECK (salario_base > 0),
+    CONSTRAINT check_estado_detalle_valido CHECK (estado IN (0, 1)),
+    CONSTRAINT check_estado_pago_detalle_valido CHECK (estado_pago IN (0, 1)),
+    CONSTRAINT uk_nomina_trabajador UNIQUE (id_nomina, id_trabajador)
+);
+
+-- 1G. TABLA: concepto_nomina (Remuneraciones/Deducciones Específicas)
+CREATE TABLE concepto_nomina (
+    id_concepto SERIAL PRIMARY KEY,
+    id_detalle_nomina VARCHAR(20) NOT NULL, -- Campo para la FK
+    razon VARCHAR(100) NOT NULL,
+    monto NUMERIC(10, 2) NOT NULL,
+    tipo SMALLINT NOT NULL, -- 0: Remuneración, 1: Deducción
+    estado SMALLINT NOT NULL DEFAULT 1,
+    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT check_monto_positivo CHECK (monto >= 0),
+    CONSTRAINT check_tipo_concepto_valido CHECK (tipo IN (0, 1)),
+    CONSTRAINT check_estado_concepto_valido CHECK (estado IN (0, 1))
+);
+
+
+-- ######################################################################
+-- PASO 2: AÑADIR CLAVES FORÁNEAS FALTANTES (DEPENDENCIAS)
+-- ######################################################################
+
+-- 2A. Añadir FKs a trabajador (que referencia a departamento y cargos)
+ALTER TABLE trabajador
+ADD CONSTRAINT fk_departamento
+FOREIGN KEY (id_departamento)
+REFERENCES departamento(id_departamento);
+
+ALTER TABLE trabajador
+ADD CONSTRAINT fk_cargo
+FOREIGN KEY (id_cargo)
+REFERENCES cargos(id_cargo);
+
+
+-- 2C. Añadir FK a nomina_general
+ALTER TABLE nomina_general
+ADD CONSTRAINT fk_departamento_nomina
+FOREIGN KEY (id_departamento)
+REFERENCES departamento(id_departamento);
+
+-- 2D. Añadir FKs a nomina_detalle
+ALTER TABLE nomina_detalle
+ADD CONSTRAINT fk_nomina_general
+FOREIGN KEY (id_nomina)
+REFERENCES nomina_general(id_nomina);
+
+ALTER TABLE nomina_detalle
+ADD CONSTRAINT fk_trabajador_nomina
+FOREIGN KEY (id_trabajador)
+REFERENCES trabajador(id_trabajador);
+
+-- 2E. Añadir FK a concepto_nomina
+ALTER TABLE concepto_nomina
+ADD CONSTRAINT fk_detalle_nomina
+FOREIGN KEY (id_detalle_nomina)
+REFERENCES nomina_detalle(id_detalle_nomina);

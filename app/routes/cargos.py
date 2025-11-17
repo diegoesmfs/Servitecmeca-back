@@ -1,122 +1,78 @@
-from fastapi import APIRouter, HTTPException, status
-from app.schemas.cargo import CargoSchema, CargoCreate
-from app.database import get_connection
-import psycopg2
+from fastapi import APIRouter, Depends, HTTPException, status
+from asyncpg import Connection
+from app.schemas.cargos import CargoCreate, CargoOut, CargoUpdate
+from app.controllers import cargos_controller as cargo_controller
+# NOTA: Ajusta esta importación a donde tengas tu conexión
+from app.db.connection import get_connection 
+from typing import List
 
-router = APIRouter()
+# Definimos el router
+router = APIRouter(
+    prefix="/cargos",
+    tags=["Cargos"]
+)
 
-@router.get("/cargos", response_model=list[CargoSchema])
-def obtener_cargos():
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT * FROM cargos WHERE is_deleted = 0")
-        resultados = cursor.fetchall()
-        if not resultados:
-            raise HTTPException(status_code=404, detail="No se encontraron cargos")
-        return [CargoSchema(**fila) for fila in resultados]
-    except psycopg2.Error as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener cargos: {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-@router.get("/cargos/{posicion_id}", response_model=CargoSchema)
-def obtener_cargo_por_id(posicion_id: int):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT * FROM cargos WHERE posicion_id = %s AND is_deleted = 0", (posicion_id,))
-        fila = cursor.fetchone()
-        if not fila:
-            raise HTTPException(status_code=404, detail="Cargo no encontrado")
-        return CargoSchema(**fila)
-    except psycopg2.Error as e:
-        raise HTTPException(status_code=500, detail=f"Error al obtener cargo: {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-@router.post("/cargos", response_model=CargoSchema, status_code=status.HTTP_201_CREATED)
-def crear_cargo(cargo: CargoCreate):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    query = """
-        INSERT INTO cargos (nombre, descripcion, sueldo_base, departmento_id, createdat, is_deleted)
-        VALUES (%s, %s, %s, %s, NOW(), 0)
-        RETURNING *
+# ----------------------------------------------------------------------
+# C R E A T E (POST /cargos)
+# ----------------------------------------------------------------------
+@router.post("/", response_model=CargoOut, status_code=status.HTTP_201_CREATED)
+async def create_new_cargo(
+    cargo_data: CargoCreate, 
+    conn: Connection = Depends(get_connection)
+):
     """
-    try:
-        cursor.execute(query, (
-            cargo.nombre,
-            cargo.descripcion,
-            cargo.sueldo_base,
-            cargo.departmento_id
-        ))
-        nuevo = cursor.fetchone()
-        conn.commit()
-        return CargoSchema(**nuevo)
-    except psycopg2.Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al crear cargo: {e}")
-    finally:
-        cursor.close()
-        conn.close()
-
-@router.put("/cargos/{posicion_id}", response_model=CargoSchema)
-def actualizar_cargo(posicion_id: int, cargo: CargoCreate):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    query = """
-        UPDATE cargos
-        SET nombre = %s, descripcion = %s, sueldo_base = %s, departmento_id = %s
-        WHERE posicion_id = %s AND is_deleted = 0
-        RETURNING *
+    Crea un nuevo cargo en el sistema.
     """
-    try:
-        cursor.execute(query, (
-            cargo.nombre,
-            cargo.descripcion,
-            cargo.sueldo_base,
-            cargo.departmento_id,
-            posicion_id
-        ))
-        actualizado = cursor.fetchone()
-        if not actualizado:
-            raise HTTPException(status_code=404, detail="Cargo no encontrado para actualizar")
-        conn.commit()
-        return CargoSchema(**actualizado)
-    except psycopg2.Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al actualizar cargo: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+    return await cargo_controller.create_cargo(cargo_data, conn)
 
-@router.delete("/cargos/{posicion_id}", status_code=status.HTTP_200_OK)
-def eliminar_cargo(posicion_id: int):
-    conn = get_connection()
-    if not conn:
-        raise HTTPException(status_code=500, detail="No se pudo conectar a la base de datos")
-    cursor = conn.cursor()
-    query = "UPDATE cargos SET is_deleted = 1 WHERE posicion_id = %s"
-    try:
-        cursor.execute(query, (posicion_id,))
-        if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Cargo no encontrado para eliminar")
-        conn.commit()
-        return {"detail": "Cargo eliminado correctamente"}
-    except psycopg2.Error as e:
-        conn.rollback()
-        raise HTTPException(status_code=500, detail=f"Error al eliminar cargo: {e}")
-    finally:
-        cursor.close()
-        conn.close()
+# ----------------------------------------------------------------------
+# R E A D (Listar todos - GET /cargos)
+# ----------------------------------------------------------------------
+@router.get("/", response_model=List[CargoOut])
+async def list_all_cargos(
+    conn: Connection = Depends(get_connection)
+):
+    """
+    Lista todos los cargos activos (estado = 1) del sistema.
+    """
+    return await cargo_controller.list_cargos(conn)
+
+# ----------------------------------------------------------------------
+# R E A D (Por ID - GET /cargos/{cargo_id})
+# ----------------------------------------------------------------------
+@router.get("/{cargo_id}", response_model=CargoOut)
+async def read_cargo(
+    cargo_id: str, 
+    conn: Connection = Depends(get_connection)
+):
+    """
+    Obtiene los detalles de un cargo específico usando su ID.
+    """
+    return await cargo_controller.get_cargo_by_id(cargo_id, conn)
+
+# ----------------------------------------------------------------------
+# U P D A T E (PUT /cargos/{cargo_id})
+# ----------------------------------------------------------------------
+@router.put("/{cargo_id}", response_model=CargoOut)
+async def update_existing_cargo(
+    cargo_id: str,
+    cargo_data: CargoUpdate,
+    conn: Connection = Depends(get_connection)
+):
+    """
+    Actualiza la información de un cargo existente.
+    """
+    return await cargo_controller.update_cargo(cargo_id, cargo_data, conn)
+
+# ----------------------------------------------------------------------
+# D E L E T E (Desactivar - DELETE /cargos/{cargo_id})
+# ----------------------------------------------------------------------
+@router.patch("/{cargo_id}", response_model=dict)
+async def disable_cargo(
+    cargo_id: str, 
+    conn: Connection = Depends(get_connection)
+):
+    """
+    Desactiva un cargo (establece su estado a 0).
+    """
+    return await cargo_controller.delete_cargo(cargo_id, conn)
