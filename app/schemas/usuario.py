@@ -10,7 +10,7 @@ class UsuarioCreate(BaseModel):
     nombre: str = Field(..., max_length=100)
     correo: EmailStr = Field(..., max_length=150)
     documento: str = Field(..., max_length=20)
-    id_trabajador: int = Field(..., gt=0, description="Debe ser un id_trabajador existente.")
+    id_trabajador: Optional[int] = Field(..., gt=0, description="Debe ser un id_trabajador existente.")
     rol: RolUsuario = Field(..., description="Rol del usuario: 'administrador' o 'usuario'")
     # Contraseña en texto plano, debe ser hasheada en el controlador
     contrasena: str = Field(..., min_length=8, max_length=255) 

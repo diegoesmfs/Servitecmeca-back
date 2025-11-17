@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 import asyncpg
 from typing import List, Optional
 from app.schemas.usuario import UsuarioCreate, UsuarioUpdate, UsuarioOut, UsuarioLogin, TokenResponse
+from app.core.security import hash_password, verify_password, create_access_token
 from app.controllers import usuario_controller
 # Asegúrate de que esta ruta sea correcta para tu proyecto:
 from app.db.connection import get_connection 
@@ -88,8 +89,7 @@ async def login_for_access_token(user_in: UsuarioLogin, conn: asyncpg.Connection
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Generar token JWT y devolverlo
-    from app.core.security import create_access_token
+   
 
     access_token = create_access_token({"sub": usuario.correo})
     return {"access_token": access_token, "token_type": "bearer"}
