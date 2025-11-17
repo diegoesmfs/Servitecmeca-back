@@ -79,7 +79,7 @@ CREATE TABLE usuario (
     nombre VARCHAR(100) NOT NULL,
     correo VARCHAR(150) UNIQUE NOT NULL,
     documento VARCHAR(20) UNIQUE NOT NULL,
-    id_trabajador INT UNIQUE NOT NULL, -- Campo para la FK
+    id_trabajador INT UNIQUE , -- Campo para la FK
     rol VARCHAR(20) NOT NULL,
     contrasena VARCHAR(255) NOT NULL,
     estado SMALLINT NOT NULL DEFAULT 1,

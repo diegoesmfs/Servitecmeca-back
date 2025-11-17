@@ -1,4 +1,3 @@
-# controllers/usuario_controller.py
 from typing import List, Optional
 from datetime import datetime
 import asyncpg
@@ -10,21 +9,21 @@ from app.models.usuario import Usuario
 # --- 1. Crear Usuario ---
 async def create_usuario(conn: asyncpg.Connection, usr_in: UsuarioCreate) -> Optional[Usuario]:
     """Crea un nuevo usuario con la contraseña hasheada."""
-    
+
     hashed_pwd = hash_password(usr_in.contrasena)
-    
+
     query = """
     INSERT INTO usuario (
         nombre, correo, documento, id_trabajador, rol, contrasena, estado
     ) VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *;
     """
-    
+
     values = (
-        usr_in.nombre, usr_in.correo, usr_in.documento, usr_in.id_trabajador, 
+        usr_in.nombre, usr_in.correo, usr_in.documento, usr_in.id_trabajador,
         usr_in.rol, hashed_pwd, usr_in.estado
     )
-    
+
     try:
         record = await conn.fetchrow(query, *values)
         if record:
@@ -33,22 +32,22 @@ async def create_usuario(conn: asyncpg.Connection, usr_in: UsuarioCreate) -> Opt
         raise ValueError("Error de unicidad: El correo, documento o ID de trabajador ya están registrados.")
     except (CheckViolationError, NotNullViolationError) as e:
         raise ValueError(f"Error de validación: La base de datos rechazó los datos. {e.detail}")
-    
+
     return None
 
 # --- 2. Listar Usuarios (Paginación) ---
 async def list_usuarios(
-    conn: asyncpg.Connection, 
-    skip: int = 0, 
+    conn: asyncpg.Connection,
+    skip: int = 0,
     limit: int = 100,
     activo: Optional[bool] = None
 ) -> List[Usuario]:
     """Retorna la lista de usuarios, con paginación y filtro por estado."""
-    
+
     where_clauses = []
     values = []
     param_index = 1
-    
+
     if activo is not None:
         estado_val = 1 if activo else 0
         where_clauses.append(f"estado = ${param_index}")
@@ -87,29 +86,23 @@ async def update_usuario(conn: asyncpg.Connection, usr_id: int, usr_in: UsuarioU
     update_data = usr_in.model_dump(exclude_unset=True)
     if not update_data:
         return await get_usuario_by_id(conn, usr_id)
-        
+
     # HASHEAR LA CONTRASEÑA SI ESTÁ PRESENTE
     if 'contrasena' in update_data:
         update_data['contrasena'] = hash_password(update_data['contrasena'])
-        
+
     set_clauses = []
     values = []
     param_index = 1
-    
+
     for key, value in update_data.items():
-        # No permitir la actualización de id_trabajador
-        if key == 'id_trabajador':
-            continue
-            
+        # 🔎 Ahora sí permitimos actualizar id_trabajador
         set_clauses.append(f"{key} = ${param_index}")
         values.append(value)
         param_index += 1
 
-    if not set_clauses: # Si solo se intentó actualizar id_trabajador
-        return await get_usuario_by_id(conn, usr_id)
-
     values.append(usr_id)
-    
+
     query = f"""
     UPDATE usuario 
     SET {', '.join(set_clauses)}
@@ -123,7 +116,7 @@ async def update_usuario(conn: asyncpg.Connection, usr_id: int, usr_in: UsuarioU
             return Usuario.from_record(record)
         return None
     except UniqueViolationError:
-        raise ValueError("Error de unicidad: El correo o documento ya están en uso.")
+        raise ValueError("Error de unicidad: El correo, documento o ID de trabajador ya están en uso.")
     except (CheckViolationError, NotNullViolationError) as e:
         raise ValueError(f"Error de validación: La base de datos rechazó los datos. {e.detail}")
 
