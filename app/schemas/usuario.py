@@ -53,4 +53,4 @@ class TokenResponse(BaseModel):
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    usuario: UsuarioOut
+    

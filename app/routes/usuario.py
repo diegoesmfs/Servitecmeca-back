@@ -104,5 +104,5 @@ async def login_for_access_token(user_in: UsuarioLogin, conn: asyncpg.Connection
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "usuario": usuario
+        
     }
