@@ -1,61 +1,53 @@
+# schemas/cargo.py
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, Literal
+from decimal import Decimal
 from datetime import datetime
-# conint ya no es necesario
 
-# ====================
-# 1. MODELO BASE (Estructura de la Data - SIN CONFIGURACIÓN)
-# ====================
-class CargoBase(BaseModel):
-    id_cargo: str = Field(..., max_length=10, description="ID único del cargo (ej: 'GERENTE').")
+# Opciones para el nivel (0 a 4)
+Nivel = Literal[0, 1, 2, 3, 4]
+
+# --- Clases CREATE y UPDATE (Para entrada de datos) ---
+
+class CargoCreate(BaseModel):
+    id_cargo: str = Field(..., max_length=10)
+    id_departamento: str = Field(..., max_length=10)
     titulo: str = Field(..., max_length=100)
     descripcion: Optional[str] = None
-    
-    # CORRECCIÓN: Usamos 'int' con Field(..., ge=0, le=4)
-    nivel: int = Field(..., ge=0, le=4, description="Nivel jerárquico de 0 a 4.")
-    
-    # CORRECCIÓN: Usamos 'float' con Field(..., gt=0)
-    salario_base: float = Field(..., gt=0, description="Debe ser mayor a 0.")
-    salario_maximo: float = Field(..., description="Debe ser mayor o igual al salario base.")
+    nivel: Nivel
+    salario_base: Decimal = Field(..., decimal_places=2, gt=Decimal(0))
+    salario_maximo: Decimal = Field(..., decimal_places=2)
     competencias: Optional[str] = None
-
-# ====================
-# 2. ESQUEMAS DE ENTRADA (Input para la API)
-# ====================
-
-class CargoCreate(CargoBase):
-    # Hereda todos los campos como requeridos para la petición POST.
-    pass
-
+    estado: Optional[int] = Field(1, ge=0, le=1)
+    
 class CargoUpdate(BaseModel):
-    # Modelo para manejar campos opcionales en la actualización.
+    id_departamento: Optional[str] = Field(None, max_length=10)
     titulo: Optional[str] = Field(None, max_length=100)
     descripcion: Optional[str] = None
-    
-    # CORRECCIÓN: Usamos 'int' con Field(None, ge=0, le=4)
-    nivel: Optional[int] = Field(None, ge=0, le=4)
-    
-    # CORRECCIÓN: Usamos 'float' con Field(None, gt=0)
-    salario_base: Optional[float] = Field(None, gt=0)
-    salario_maximo: Optional[float] = None
+    nivel: Optional[Nivel] = None
+    salario_base: Optional[Decimal] = Field(None, decimal_places=2, gt=Decimal(0))
+    salario_maximo: Optional[Decimal] = Field(None, decimal_places=2)
     competencias: Optional[str] = None
-    
-    # CORRECCIÓN: Usamos 'int' con Field(None, ge=0, le=1)
-    estado: Optional[int] = Field(None, ge=0, le=1) 
+    estado: Optional[int] = Field(None, ge=0, le=1)
 
-# ====================
-# 3. ESQUEMA DE SALIDA (Output de la DB - ¡LA ÚNICA CON MODEL_CONFIG!)
-# ====================
+# --- Clase de Salida (CargoOut) MODIFICADA ---
+class CargoOut(BaseModel):
+    id_cargo: str
+    id_departamento: str
+    titulo: str
+    descripcion: Optional[str]
+    nivel: int
+    salario_base: Decimal
+    salario_maximo: Decimal
+    competencias: Optional[str]
+    estado: int
+    creado: datetime
+    
+    # 🌟 Nuevo campo enriquecido
+    nombre_departamento: str 
 
-class CargoOut(CargoBase): 
-    # Campo estado que viene de la DB.
-    # CORRECCIÓN: Usamos 'int' con Field(..., ge=0, le=1)
-    estado: int = Field(1, ge=0, le=1)
-    
-    # Forzamos la definición del campo de fecha/hora como requerido para el output.
-    creado: datetime = Field(..., description="Fecha de creación del registro en la DB")
-    
-    # SOLO LA CLASE DE SALIDA LLEVA LA CONFIGURACIÓN DE MAPEADO.
-    model_config = {
-        "from_attributes": True  
-    }
+    class Config:
+        from_attributes = True
+        json_encoders = {
+            Decimal: lambda v: float(v),
+        }
