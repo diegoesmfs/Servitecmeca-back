@@ -10,6 +10,8 @@ from app.routes import usuario as Usuario_router
 from app.routes import nomina_general as NominaGeneral_router
 from app.routes import nominas_detalles as NominaDetalle_router   
 from app.routes import cargos as Cargos_router
+from app.routes import concepto_nomina as ConceptoNomina_router
+from app.routes import dashboard as Dashboard_router  
 from app.db.connection import connect_to_db, disconnect_from_db # Mantener importaciones
 
 # 🌟 1. DEFINIR EL GESTOR DE CONTEXTO ASÍNCRONO (LIFESPAN)
@@ -40,19 +42,21 @@ app = FastAPI(
 # CORS (se mantiene igual)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173"],  # Ajusta según tus necesidades
     allow_credentials=True,
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "Set-Cookie"],
 )
 
 
 
 app.include_router(departamento_router.router, prefix="/api/v1", tags=["Departamentos"])
+app.include_router(Cargos_router.router, prefix="/api/v1", tags=["Cargos"]) 
 app.include_router(Trabajador_router.router, prefix="/api/v1", tags=["Trabajadores"])
 app.include_router(Usuario_router.router, prefix="/api/v1", tags=["Usuarios"])    
 app.include_router(NominaGeneral_router.router, prefix="/api/v1", tags=["Nóminas Generales"])
 app.include_router(NominaDetalle_router.router, prefix="/api/v1", tags=["Nóminas Detalles"]) 
-app.include_router(Cargos_router.router, prefix="/api/v1", tags=["Cargos"]) 
+app.include_router(ConceptoNomina_router.router, prefix="/api/v1", tags=["Conceptos Nómina"])   
+app.include_router(Dashboard_router.router, prefix="/api/v1", tags=["Dashboard"]) 
 
 

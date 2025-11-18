@@ -48,7 +48,7 @@ async def read_cargo(
     """
     Obtiene los detalles de un cargo específico usando su ID.
     """
-    return await cargo_controller.get_cargo_by_id(cargo_id.upper(), conn)
+    return await cargo_controller.get_cargo_by_id(cargo_id, conn)
 
 # ----------------------------------------------------------------------
 # U P D A T E (PUT /cargos/{cargo_id})
@@ -62,7 +62,7 @@ async def update_existing_cargo(
     """
     Actualiza la información de un cargo existente.
     """
-    return await cargo_controller.update_cargo(cargo_id.upper(), cargo_data, conn)
+    return await cargo_controller.update_cargo(cargo_id, cargo_data, conn)
 
 
 # PARTIAL UPDATE (PATCH) - permite enviar solo los campos que quieras cambiar
@@ -80,7 +80,7 @@ async def patch_cargo(
 # ----------------------------------------------------------------------
 # D E L E T E (Desactivar - DELETE /cargos/{cargo_id})
 # ----------------------------------------------------------------------
-@router.delete("/{cargo_id}", response_model=dict)
+@router.patch("/{cargo_id}", response_model=dict)
 async def disable_cargo(
     cargo_id: str, 
     conn: Connection = Depends(get_connection)
@@ -88,4 +88,4 @@ async def disable_cargo(
     """
     Desactiva un cargo (establece su estado a 0).
     """
-    return await cargo_controller.delete_cargo(cargo_id.upper(), conn)
+    return await cargo_controller.delete_cargo(cargo_id, conn)
