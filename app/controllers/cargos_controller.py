@@ -22,10 +22,13 @@ async def create_cargo(cargo_data: CargoCreate, conn: Connection) -> CargoOut:
     RETURNING *;
     """
     
+    # Normalizamos el ID a mayúsculas para evitar problemas de búsquedas
+    id_cargo_normalized = cargo_data.id_cargo.upper() if cargo_data.id_cargo is not None else None
+
     try:
         record = await conn.fetchrow(
             query, 
-            cargo_data.id_cargo, 
+            id_cargo_normalized, 
             cargo_data.titulo, 
             cargo_data.descripcion, 
             cargo_data.nivel, 
