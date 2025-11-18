@@ -1,11 +1,11 @@
-# models/nomina_general.py
+# models/nomina_general.py (COMPLETO Y CORREGIDO)
 from datetime import date, datetime
 from typing import Optional
 import asyncpg
 from decimal import Decimal
 
 class NominaGeneral:
-    """Modelo de Negocio para la entidad NominaGeneral."""
+    """Modelo de Negocio para la entidad NominaGeneral, extendido con el nombre de departamento."""
     def __init__(self, 
                  id_nomina: str, 
                  periodo: date, 
@@ -17,7 +17,9 @@ class NominaGeneral:
                  estado: int, 
                  estado_pago: int,
                  observaciones: Optional[str],
-                 creado: datetime):
+                 creado: datetime,
+                 # 🌟 CAMPO AÑADIDO POR EL JOIN 🌟
+                 nombre_departamento: str):
         
         self.id_nomina = id_nomina
         self.periodo = periodo
@@ -30,6 +32,8 @@ class NominaGeneral:
         self.estado_pago = estado_pago
         self.observaciones = observaciones
         self.creado = creado
+        # Asignación del nuevo atributo
+        self.nombre_departamento = nombre_departamento
 
     @classmethod
     def from_record(cls, record: asyncpg.Record):
@@ -45,5 +49,7 @@ class NominaGeneral:
             estado=record["estado"],
             estado_pago=record["estado_pago"],
             observaciones=record["observaciones"],
-            creado=record["creado"]
+            creado=record["creado"],
+            # Mapeo del nuevo campo
+            nombre_departamento=record["nombre_departamento"]
         )

@@ -1,13 +1,14 @@
-# controllers/nomina_general_controller.py
+# controllers/nomina_general_controller.py (COMPLETO Y CORREGIDO)
 from typing import List, Optional
 import asyncpg
 from asyncpg.exceptions import UniqueViolationError, ForeignKeyViolationError, CheckViolationError, NotNullViolationError
 from app.schemas.nomina_general import NominaGeneralCreate, NominaGeneralUpdate
 from app.models.nomina_general import NominaGeneral
-# Asegúrate de que esta importación sea correcta en tu proyecto
 from app.controllers import nomina_detalle_controller 
+from datetime import date # Importar date si lo usas en create_nomina_general
 
-# --- 1. Crear Nómina General (CON DETALLES AUTOMÁTICOS) ---
+# --- 1. Crear Nómina General ---
+# Se mantiene sin JOIN, ya que solo es una operación de escritura
 async def create_nomina_general(conn: asyncpg.Connection, nomina_in: NominaGeneralCreate) -> Optional[NominaGeneral]:
     query = """
     INSERT INTO nomina_general (
@@ -23,16 +24,16 @@ async def create_nomina_general(conn: asyncpg.Connection, nomina_in: NominaGener
         nomina_in.estado, nomina_in.estado_pago, nomina_in.observaciones
     )
     
-    # Se usa una transacción para garantizar la atomicidad: si falla el detalle, falla la general.
     async with conn.transaction():
         try:
-            # 1. Insertar la Nómina General
             record = await conn.fetchrow(query, *values)
             
             if record:
+                # Nota: Aquí devolvemos el objeto NominaGeneral básico. Si quieres devolver
+                # el objeto enriquecido, deberías llamar a get_nomina_general_by_id(conn, record['id_nomina'])
                 nomina_general_obj = NominaGeneral.from_record(record)
                 
-                # 2. LLAMAR A LA FUNCIÓN DE CREACIÓN DE DETALLES (ubicada en nomina_detalle_controller)
+                # 2. Creación de detalles
                 detalles = await nomina_detalle_controller.create_detalles_for_nomina(
                     conn, 
                     nomina_general_obj.id_nomina, 
@@ -40,23 +41,22 @@ async def create_nomina_general(conn: asyncpg.Connection, nomina_in: NominaGener
                 )
                 
                 if not detalles:
-                     # Opcional: Levantar una excepción si no hay trabajadores para evitar una nómina vacía
-                     print(f"Advertencia: Nomina {nomina_general_obj.id_nomina} creada, pero sin detalles (0 trabajadores activos).")
+                    print(f"Advertencia: Nomina {nomina_general_obj.id_nomina} creada, pero sin detalles (0 trabajadores activos).")
                 
-                return nomina_general_obj
+                # Retornamos la versión ENRIQUECIDA (con JOIN)
+                return await get_nomina_general_by_id(conn, nomina_general_obj.id_nomina) 
 
         except UniqueViolationError:
             raise ValueError("Error de unicidad: El ID de nómina ya existe.")
         except ForeignKeyViolationError:
             raise ValueError("Error de clave foránea: El ID de departamento no existe.")
         except (CheckViolationError, NotNullViolationError) as e:
-            # Esta excepción capturará errores de la base de datos (Ej: CheckValido)
             raise ValueError(f"Error de validación: La base de datos rechazó los datos. {e.detail}")
     
     return None
 
 
-# --- 2. Listar Nóminas Generales (con Paginación y Filtrado) ---
+# --- 2. Listar Nóminas Generales (MODIFICADO con JOIN) ---
 async def list_nominas_generales(
     conn: asyncpg.Connection, 
     skip: int = 0, 
@@ -64,28 +64,33 @@ async def list_nominas_generales(
     id_departamento: Optional[str] = None,
     estado_pago: Optional[int] = None
 ) -> List[NominaGeneral]:
-    """Retorna la lista de nóminas generales, con paginación y filtros."""
+    """Retorna la lista de nóminas generales, incluyendo el nombre del departamento."""
     
     where_clauses = []
     values = []
     param_index = 1
     
     if id_departamento:
-        where_clauses.append(f"id_departamento = ${param_index}")
+        where_clauses.append(f"ng.id_departamento = ${param_index}")
         values.append(id_departamento)
         param_index += 1
 
     if estado_pago is not None:
-        where_clauses.append(f"estado_pago = ${param_index}")
+        where_clauses.append(f"ng.estado_pago = ${param_index}")
         values.append(estado_pago)
         param_index += 1
 
     where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
+    # Consulta con JOIN para obtener el nombre del departamento
     query = f"""
-    SELECT * FROM nomina_general 
+    SELECT 
+        ng.*, 
+        d.nombre AS nombre_departamento  
+    FROM nomina_general ng
+    JOIN departamento d ON ng.id_departamento = d.id_departamento
     {where_sql} 
-    ORDER BY periodo DESC, fecha_pago DESC
+    ORDER BY ng.periodo DESC, ng.fecha_pago DESC
     LIMIT ${param_index} 
     OFFSET ${param_index + 1};
     """
@@ -94,16 +99,25 @@ async def list_nominas_generales(
     rows = await conn.fetch(query, *values)
     return [NominaGeneral.from_record(r) for r in rows]
 
-# --- 3. Obtener una Nómina General por ID ---
+# --- 3. Obtener una Nómina General por ID (MODIFICADO con JOIN) ---
 async def get_nomina_general_by_id(conn: asyncpg.Connection, nomina_id: str) -> Optional[NominaGeneral]:
-    query = "SELECT * FROM nomina_general WHERE id_nomina = $1;"
+    """Obtiene una nómina general por ID, incluyendo el nombre del departamento."""
+    query = """
+    SELECT 
+        ng.*, 
+        d.nombre AS nombre_departamento
+    FROM nomina_general ng
+    JOIN departamento d ON ng.id_departamento = d.id_departamento
+    WHERE ng.id_nomina = $1;
+    """
     record = await conn.fetchrow(query, nomina_id)
     return NominaGeneral.from_record(record) if record else None
 
-# --- 4. Actualizar Nómina General ---
+# --- 4. Actualizar Nómina General (MODIFICADO para retornar la versión con JOIN) ---
 async def update_nomina_general(conn: asyncpg.Connection, nomina_id: str, nomina_in: NominaGeneralUpdate) -> Optional[NominaGeneral]:
     update_data = nomina_in.model_dump(exclude_unset=True)
     if not update_data:
+        # Devuelve la versión completa con el JOIN
         return await get_nomina_general_by_id(conn, nomina_id)
         
     set_clauses = []
@@ -127,7 +141,8 @@ async def update_nomina_general(conn: asyncpg.Connection, nomina_id: str, nomina
     try:
         record = await conn.fetchrow(query, *values)
         if record:
-            return NominaGeneral.from_record(record)
+            # Una vez actualizado, recupera el objeto COMPLETO (con JOIN) para retornar
+            return await get_nomina_general_by_id(conn, nomina_id) 
         return None
     except ForeignKeyViolationError:
         raise ValueError("Error de clave foránea: El ID de departamento no existe.")
