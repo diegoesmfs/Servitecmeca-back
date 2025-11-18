@@ -5,13 +5,12 @@ from asyncpg.exceptions import UniqueViolationError, CheckViolationError, NotNul
 from datetime import date
 
 from app.schemas.trabajador import TrabajadorCreate, TrabajadorUpdate
-from app.models.trabajador import Trabajador
+from app.models.trabajador import Trabajador # Asumiendo que esta clase ahora maneja los campos extra
 
-# --- 1. Crear Trabajador ---
+# --- 1. Crear Trabajador (Sin cambios en la lógica) ---
 async def create_trabajador(conn: asyncpg.Connection, trb_in: TrabajadorCreate) -> Optional[Trabajador]:
     """Crea un nuevo trabajador en la base de datos."""
     
-    # Nota: 'creado' se establece a la fecha actual antes de la inserción.
     query = """
     INSERT INTO trabajador (
         documento, nombre, apellido, correo, telefono, direccion, 
@@ -30,6 +29,9 @@ async def create_trabajador(conn: asyncpg.Connection, trb_in: TrabajadorCreate) 
     try:
         record = await conn.fetchrow(query, *values)
         if record:
+            # NOTA: Después de la creación, se devuelve el objeto básico. Si quieres 
+            # devolver el objeto completo (con nombre_departamento y titulo_cargo),
+            # deberías llamar a get_trabajador_by_id(conn, record['id_trabajador']) aquí.
             return Trabajador.from_record(record)
     except UniqueViolationError:
         raise ValueError("Error de unicidad: El documento o correo ya existe.")
@@ -39,7 +41,9 @@ async def create_trabajador(conn: asyncpg.Connection, trb_in: TrabajadorCreate) 
     
     return None
 
-# --- 2. Listar Trabajadores (con Paginación y Filtrado) ---
+
+
+# --- 2. Listar Trabajadores (MODIFICADO con JOIN) ---
 async def list_trabajadores(
     conn: asyncpg.Connection, 
     skip: int = 0, 
@@ -47,7 +51,7 @@ async def list_trabajadores(
     activo: Optional[bool] = None, # Filtra por estado
     id_departamento: Optional[str] = None # Filtra por departamento
 ) -> List[Trabajador]:
-    """Retorna la lista de trabajadores con paginación y filtros."""
+    """Retorna la lista de trabajadores con paginación y filtros, incluyendo nombre de departamento y título de cargo."""
     
     where_clauses = []
     values = []
@@ -56,23 +60,29 @@ async def list_trabajadores(
     # Filtro por Estado
     if activo is not None:
         estado_val = 1 if activo else 0
-        where_clauses.append(f"estado = ${param_index}")
+        where_clauses.append(f"t.estado = ${param_index}")
         values.append(estado_val)
         param_index += 1
         
     # Filtro por Departamento
     if id_departamento:
-        where_clauses.append(f"id_departamento = ${param_index}")
+        where_clauses.append(f"t.id_departamento = ${param_index}")
         values.append(id_departamento)
         param_index += 1
 
     where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-    # Paginación (LIMIT y OFFSET)
+    # La consulta JOIN selecciona los campos t.* y añade los campos d.nombre y c.titulo
     query = f"""
-    SELECT * FROM trabajador 
+    SELECT 
+        t.*, 
+        d.nombre AS nombre_departamento, 
+        c.titulo AS titulo_cargo
+    FROM trabajador t
+    JOIN departamento d ON t.id_departamento = d.id_departamento
+    JOIN cargos c ON t.id_cargo = c.id_cargo
     {where_sql} 
-    ORDER BY apellido, nombre
+    ORDER BY t.apellido, t.nombre
     LIMIT ${param_index} 
     OFFSET ${param_index + 1};
     """
@@ -81,17 +91,32 @@ async def list_trabajadores(
     rows = await conn.fetch(query, *values)
     return [Trabajador.from_record(r) for r in rows]
 
-# --- 3. Obtener un Trabajador por ID ---
+
+
+# --- 3. Obtener un Trabajador por ID (MODIFICADO con JOIN) ---
 async def get_trabajador_by_id(conn: asyncpg.Connection, trb_id: int) -> Optional[Trabajador]:
-    query = "SELECT * FROM trabajador WHERE id_trabajador = $1;"
+    """Obtiene un trabajador por ID, incluyendo nombre de departamento y título de cargo."""
+    query = """
+    SELECT 
+        t.*, 
+        d.nombre AS nombre_departamento, 
+        c.titulo AS titulo_cargo
+    FROM trabajador t
+    JOIN departamento d ON t.id_departamento = d.id_departamento
+    JOIN cargos c ON t.id_cargo = c.id_cargo
+    WHERE t.id_trabajador = $1;
+    """
     record = await conn.fetchrow(query, trb_id)
     return Trabajador.from_record(record) if record else None
 
-# --- 4. Actualizar Trabajador ---
+
+
+# --- 4. Actualizar Trabajador (MODIFICADO para retornar la versión completa) ---
 async def update_trabajador(conn: asyncpg.Connection, trb_id: int, trb_in: TrabajadorUpdate) -> Optional[Trabajador]:
-    """Actualiza los campos de un trabajador y retorna el objeto actualizado."""
+    """Actualiza los campos de un trabajador y retorna el objeto actualizado con los datos JOIN."""
     update_data = trb_in.model_dump(exclude_unset=True)
     if not update_data:
+        # Si no hay datos que actualizar, devuelve la versión completa
         return await get_trabajador_by_id(conn, trb_id)
         
     set_clauses = []
@@ -115,30 +140,27 @@ async def update_trabajador(conn: asyncpg.Connection, trb_id: int, trb_in: Traba
     try:
         record = await conn.fetchrow(query, *values)
         if record:
-            return Trabajador.from_record(record)
+            # Una vez actualizado, se recupera el objeto COMPLETO (con JOIN) para retornar
+            return await get_trabajador_by_id(conn, trb_id) 
         return None
     except UniqueViolationError:
         raise ValueError("Error de unicidad: El documento o correo ya están en uso.")
     except (CheckViolationError, NotNullViolationError) as e:
         raise ValueError(f"Error de validación: La base de datos rechazó los datos. {e.detail}")
 
-# --- 5. Eliminar Trabajador (Lógica) ---
+# --- 5. Eliminar Trabajador (Lógica) (Sin cambios en la lógica) ---
 async def deactivate_trabajador(conn: asyncpg.Connection, trb_id: int) -> Optional[Trabajador]:
     """Realiza una eliminación lógica (establece estado a 0) de un trabajador."""
     deactivate_data = TrabajadorUpdate(estado=0)
+    # update_trabajador se encarga de retornar el objeto completo
     return await update_trabajador(conn, trb_id, deactivate_data)
 
 
-# --- 6. Contar trabajadores por departamento ---
+# --- 6. Contar trabajadores por departamento (Sin cambios) ---
 async def count_trabajadores_by_departamento(
     conn: asyncpg.Connection, id_departamento: str, activo: Optional[bool] = None
 ) -> int:
-    """Retorna el número de trabajadores en un departamento.
-
-    - Si `activo` es True cuenta solo trabajadores con estado=1.
-    - Si `activo` es False cuenta solo estado=0.
-    - Si `activo` es None cuenta todos los estados.
-    """
+    """Retorna el número de trabajadores en un departamento."""
     values = [id_departamento]
     if activo is None:
         query = "SELECT COUNT(*) as total FROM trabajador WHERE id_departamento = $1;"

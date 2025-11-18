@@ -5,7 +5,7 @@ import asyncpg
 from decimal import Decimal
 
 class Trabajador:
-    """Modelo de Negocio para la entidad Trabajador."""
+    """Modelo de Negocio para la entidad Trabajador, extendido con datos de JOIN."""
     
     def __init__(self, 
                  id_trabajador: int, 
@@ -21,7 +21,10 @@ class Trabajador:
                  tipo_contrato: int, 
                  creado: date, 
                  habilidades_competencias: Optional[str], 
-                 estado: int):
+                 estado: int,
+                 # Campos para el JOIN
+                 nombre_departamento: str, 
+                 titulo_cargo: str):
         
         self.id_trabajador = id_trabajador
         self.documento = documento
@@ -37,6 +40,9 @@ class Trabajador:
         self.creado = creado
         self.habilidades_competencias = habilidades_competencias
         self.estado = estado
+        # Asignación de los nuevos atributos
+        self.nombre_departamento = nombre_departamento
+        self.titulo_cargo = titulo_cargo
 
     @classmethod
     def from_record(cls, record: asyncpg.Record):
@@ -51,10 +57,12 @@ class Trabajador:
             direccion=record["direccion"],
             id_departamento=record["id_departamento"],
             id_cargo=record["id_cargo"],
-            # asyncpg usa Decimal para numeric(10,2)
             salario=record["salario"], 
             tipo_contrato=record["tipo_contrato"],
-            creado=record["creado"], # Tipo date en DB
+            creado=record["creado"],
             habilidades_competencias=record["habilidades_competencias"],
-            estado=record["estado"]
+            estado=record["estado"],
+            # Mapeo de los nuevos campos desde el resultado del JOIN
+            nombre_departamento=record["nombre_departamento"],
+            titulo_cargo=record["titulo_cargo"]
         )
