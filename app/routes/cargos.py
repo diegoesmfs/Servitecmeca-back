@@ -64,6 +64,19 @@ async def update_existing_cargo(
     """
     return await cargo_controller.update_cargo(cargo_id, cargo_data, conn)
 
+
+# PARTIAL UPDATE (PATCH) - permite enviar solo los campos que quieras cambiar
+@router.patch("/{cargo_id}", response_model=CargoOut)
+async def patch_cargo(
+    cargo_id: str,
+    cargo_data: CargoUpdate,
+    conn: Connection = Depends(get_connection)
+):
+    """
+    Actualiza parcialmente un cargo: solo se aplican los campos enviados.
+    """
+    return await cargo_controller.update_cargo(cargo_id.upper(), cargo_data, conn)
+
 # ----------------------------------------------------------------------
 # D E L E T E (Desactivar - DELETE /cargos/{cargo_id})
 # ----------------------------------------------------------------------

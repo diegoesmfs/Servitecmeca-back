@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 import asyncpg
 from typing import List, Optional
-from app.schemas.usuario import UsuarioCreate, UsuarioUpdate, UsuarioOut, UsuarioLogin, TokenResponse
-from app.core.security import hash_password, verify_password, create_access_token
+from app.schemas.usuario import LoginResponse, UsuarioCreate, UsuarioUpdate, UsuarioOut, UsuarioLogin, TokenResponse
 from app.controllers import usuario_controller
 # Asegúrate de que esta ruta sea correcta para tu proyecto:
 from app.db.connection import get_connection 
+from app.core.security import create_access_token
 
 router = APIRouter(prefix="/usuarios", tags=["Usuarios"])
 
@@ -77,19 +77,55 @@ async def deactivate_usuario(usr_id: int, conn: asyncpg.Connection = Depends(get
 
 # --- Endpoint de Autenticación (Ejemplo) ---
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=LoginResponse)
 async def login_for_access_token(user_in: UsuarioLogin, conn: asyncpg.Connection = Depends(get_connection)):
     """Verifica credenciales de usuario."""
-    usuario = await usuario_controller.get_usuario_by_correo(conn, user_in.correo)
+    print(f"🔐 Login attempt for: {user_in.correo}")
     
-    if not usuario or not usuario_controller.verify_password(user_in.contrasena, usuario.contrasena):
+    usuario = await usuario_controller.get_usuario_by_correo(conn, user_in.correo)
+    print(f"👤 User found: {usuario is not None}")
+    
+    if not usuario:
+        print("❌ User not found in database")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales incorrectas",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-   
+    print(f"🔑 Verifying password...")
+    
+    # Usa la función verify_password modificada que acepta texto plano
+    from app.core.security import verify_password
+    password_valid = verify_password(user_in.contrasena, usuario.contrasena)
+    
+    print(f"🔑 Password valid: {password_valid}")
+    
+    if not password_valid:
+        print("❌ Password verification failed")
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credenciales incorrectas",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    
+    print("✅ Login successful")
+    
+    # Generar token JWT y devolverlo
+    from app.core.security import create_access_token
+    token_data = {
+    "sub": usuario.correo,  
+    "id_usuario": usuario.id_usuario,
+    "nombre": usuario.nombre,
+    "rol": usuario.rol,
+    "id_trabajador": usuario.id_trabajador,
+    "estado": usuario.estado,
+}
 
-    access_token = create_access_token({"sub": usuario.correo})
-    return {"access_token": access_token, "token_type": "bearer"}
+    access_token = create_access_token(token_data)
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        
+    }
+
