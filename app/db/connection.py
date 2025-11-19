@@ -4,10 +4,8 @@ from typing import Optional
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 
-load_dotenv()
 
-DB_DSN = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or "postgresql://postgres:postgres@localhost:5432/postgres"
-
+DB_DSN = os.getenv("DATABASE_URL") 
 async def connect_to_db(app: FastAPI):
     """Crea un pool de conexiones asyncpg y lo guarda en app.state.db_pool"""
     app.state.db_pool = await asyncpg.create_pool(dsn=DB_DSN)

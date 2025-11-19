@@ -30,11 +30,14 @@ env/
 ENV/
 app/venv/
 
-
+# Archivos de Entorno (¡NUEVA SECCIÓN!)
+# IGNORAR ARCHIVOS DE SECRETO
+.env
+.env.*
+*.env
 
 # PyCharm
 .idea/
-
 # VS Code
 .vscode/
 

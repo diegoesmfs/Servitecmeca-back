@@ -32,7 +32,7 @@ async def create_trabajador(conn: asyncpg.Connection, trb_in: TrabajadorCreate) 
             # NOTA: Después de la creación, se devuelve el objeto básico. Si quieres 
             # devolver el objeto completo (con nombre_departamento y titulo_cargo),
             # deberías llamar a get_trabajador_by_id(conn, record['id_trabajador']) aquí.
-            return Trabajador.from_record(record)
+            return await get_trabajador_by_id(conn, record['id_trabajador'])
     except UniqueViolationError:
         raise ValueError("Error de unicidad: El documento o correo ya existe.")
     except (CheckViolationError, NotNullViolationError) as e:
