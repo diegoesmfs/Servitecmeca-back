@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import FastAPI, Request
 from dotenv import load_dotenv
 
-load_dotenv()
+#load_dotenv()
 
 DB_DSN = os.getenv("DATABASE_URL") or os.getenv("SQLALCHEMY_DATABASE_URI") or "postgresql://postgres:postgres@localhost:5432/postgres"
 
