@@ -31,7 +31,7 @@ async def create_nomina_general(conn: asyncpg.Connection, nomina_in: NominaGener
             if record:
                 # Nota: Aquí devolvemos el objeto NominaGeneral básico. Si quieres devolver
                 # el objeto enriquecido, deberías llamar a get_nomina_general_by_id(conn, record['id_nomina'])
-                nomina_general_obj = NominaGeneral.from_record(record)
+                nomina_general_obj = await get_nomina_general_by_id(conn, record['id_nomina']) 
                 
                 # 2. Creación de detalles
                 detalles = await nomina_detalle_controller.create_detalles_for_nomina(
