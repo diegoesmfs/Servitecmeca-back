@@ -42,6 +42,7 @@ app = FastAPI(
 # CORS (se mantiene igual)
 app.add_middleware(
     CORSMiddleware,
+
     # 🚨 CAMBIAR ESTA LÍNEA 🚨
     # El asterisco "*" permite todos los dominios.
     allow_origins=["*"],
