@@ -1,4 +1,4 @@
-# schemas/trabajador.py
+# schemas/trabajador.py (Modificado)
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional, Literal
 from datetime import date
@@ -6,6 +6,8 @@ from decimal import Decimal
 
 # Opciones para el tipo_contrato (basado en CHECK (tipo_contrato = ANY (ARRAY[0, 1, 2, 3])))
 TipoContrato = Literal[0, 1, 2, 3]
+
+# --- Clases CREATE y UPDATE (Se mantienen sin cambios) ---
 
 class TrabajadorCreate(BaseModel):
     documento: str = Field(..., max_length=20)
@@ -16,12 +18,8 @@ class TrabajadorCreate(BaseModel):
     direccion: Optional[str] = Field(None, max_length=255)
     id_departamento: str = Field(..., max_length=10)
     id_cargo: str = Field(..., max_length=10)
-    # Usamos Decimal para mapear a numeric(10,2) de PostgreSQL
     salario: Decimal = Field(..., decimal_places=2, ge=Decimal(0))
     tipo_contrato: TipoContrato = Field(..., description="0, 1, 2 o 3.")
-    # La fecha de creación la maneja el controlador/DB, pero si se envía, debe ser válida
-    # No la incluiremos aquí para que sea la DB la que ponga el valor inicial (si usas DEFAULT)
-    # o el controlador el que la fije. La tabla la marca como NOT NULL.
     habilidades_competencias: Optional[str] = None
     estado: Optional[int] = Field(1, ge=0, le=1) 
 
@@ -38,9 +36,8 @@ class TrabajadorUpdate(BaseModel):
     tipo_contrato: Optional[TipoContrato] = None
     habilidades_competencias: Optional[str] = None
     estado: Optional[int] = Field(None, ge=0, le=1) 
-    
-    # La fecha 'creado' no se actualiza
 
+# --- Clase de Salida (TrabajadorOut) MODIFICADA ---
 class TrabajadorOut(BaseModel):
     id_trabajador: int
     documento: str
@@ -49,8 +46,15 @@ class TrabajadorOut(BaseModel):
     correo: str
     telefono: Optional[str]
     direccion: Optional[str]
+    
+    # FKs originales
     id_departamento: str
     id_cargo: str
+    
+    # 🌟 Nuevos campos enriquecidos (vienen del JOIN en el controlador)
+    nombre_departamento: str  # Campo del departamento.nombre
+    titulo_cargo: str         # Campo del cargos.titulo
+
     salario: Decimal
     tipo_contrato: int
     creado: date

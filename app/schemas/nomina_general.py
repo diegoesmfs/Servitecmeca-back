@@ -1,4 +1,4 @@
-# schemas/nomina_general.py
+# schemas/nomina_general.py (COMPLETO Y CORREGIDO)
 from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import date, datetime
@@ -9,7 +9,6 @@ class NominaGeneralCreate(BaseModel):
     periodo: date
     id_departamento: str = Field(..., max_length=10)
     fecha_pago: date
-    # Campos que inician en 0 o son calculados
     presupuesto_utilizado: Optional[Decimal] = Field(0.00, ge=0)
     impuesto_renta_total: Optional[Decimal] = Field(0.00, ge=0)
     seguro_social_total: Optional[Decimal] = Field(0.00, ge=0)
@@ -32,6 +31,7 @@ class NominaGeneralOut(BaseModel):
     id_nomina: str
     periodo: date
     id_departamento: str
+    nombre_departamento: str  # 🌟 NUEVO CAMPO AÑADIDO
     fecha_pago: date
     presupuesto_utilizado: Decimal
     impuesto_renta_total: Decimal

@@ -1,6 +1,5 @@
 -- ######################################################################
 -- PASO 0: LIMPIEZA INICIAL
--- Elimina las tablas existentes para una creación limpia y ordenada.
 -- ######################################################################
 
 DROP TABLE IF EXISTS concepto_nomina;
@@ -8,37 +7,20 @@ DROP TABLE IF EXISTS nomina_detalle;
 DROP TABLE IF EXISTS nomina_general;
 DROP TABLE IF EXISTS usuario;
 DROP TABLE IF EXISTS trabajador;
-DROP TABLE IF EXISTS departamento;
 DROP TABLE IF EXISTS cargos;
+DROP TABLE IF EXISTS departamento CASCADE;
 
 
 -- ######################################################################
--- PASO 1: CREACIÓN DE TABLAS BASE (SIN FKs INTERDEPENDIENTES)
+-- PASO 1: CREACIÓN DE TABLAS BASE
 -- ######################################################################
 
--- 1A. TABLA: cargos (Roles Laborales)
-CREATE TABLE cargos (
-    id_cargo VARCHAR(10) PRIMARY KEY,
-    titulo VARCHAR(100) UNIQUE NOT NULL,
-    descripcion TEXT,
-    nivel SMALLINT NOT NULL,
-    salario_base NUMERIC(10, 2) NOT NULL,
-    salario_maximo NUMERIC(10, 2) NOT NULL,
-    competencias TEXT,
-    estado SMALLINT NOT NULL DEFAULT 1,
-    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT check_nivel_valido CHECK (nivel BETWEEN 0 AND 4),
-    CONSTRAINT check_salario_base_positivo CHECK (salario_base > 0),
-    CONSTRAINT check_rango_salarial CHECK (salario_maximo >= salario_base),
-    CONSTRAINT check_estado_cargo_valido CHECK (estado IN (0, 1))
-);
-
--- 1B. TABLA: departamento (Estructura Organizacional)
+-- 1A. TABLA: departamento (Estructura Organizacional)
 CREATE TABLE departamento (
     id_departamento VARCHAR(10) PRIMARY KEY,
     nombre VARCHAR(100) UNIQUE NOT NULL,
     descripcion TEXT,
-    jefe_departamento INT UNIQUE, -- Temporalmente sin FK
+    jefe_departamento INT UNIQUE, -- Se mantendrá sin FK hasta el paso 2
     presupuesto_anual NUMERIC(15, 2) NOT NULL DEFAULT 0,
     telefono VARCHAR(15),
     email VARCHAR(150),
@@ -51,6 +33,26 @@ CREATE TABLE departamento (
     CONSTRAINT check_estado_departamento_valido CHECK (estado IN (0, 1))
 );
 
+-- 1B. TABLA: cargos (Roles Laborales - CON MODIFICACIÓN DE ESTRUCTURA)
+CREATE TABLE cargos (
+    id_cargo VARCHAR(10) PRIMARY KEY,
+    id_departamento VARCHAR(10) NOT NULL,    -- 🌟 FK AÑADIDA
+    titulo VARCHAR(100) NOT NULL,            -- 🌟 UNIQUE ELIMINADO
+    descripcion TEXT,
+    nivel SMALLINT NOT NULL,
+    salario_base NUMERIC(10, 2) NOT NULL,
+    salario_maximo NUMERIC(10, 2) NOT NULL,
+    competencias TEXT,
+    estado SMALLINT NOT NULL DEFAULT 1,
+    creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- 🌟 NUEVA RESTRICCIÓN: El título debe ser único dentro de un departamento.
+    CONSTRAINT uk_cargo_departamento UNIQUE (id_departamento, titulo), 
+    CONSTRAINT check_nivel_valido CHECK (nivel BETWEEN 0 AND 4),
+    CONSTRAINT check_salario_base_positivo CHECK (salario_base > 0),
+    CONSTRAINT check_rango_salarial CHECK (salario_maximo >= salario_base),
+    CONSTRAINT check_estado_cargo_valido CHECK (estado IN (0, 1))
+);
+
 -- 1C. TABLA: trabajador (Datos Personales y Laborales)
 CREATE TABLE trabajador (
     id_trabajador SERIAL PRIMARY KEY,
@@ -60,8 +62,8 @@ CREATE TABLE trabajador (
     correo VARCHAR(150) UNIQUE NOT NULL,
     telefono VARCHAR(15),
     direccion VARCHAR(255),
-    id_departamento VARCHAR(10) NOT NULL, -- Campo para la FK
-    id_cargo VARCHAR(10) NOT NULL,        -- Campo para la FK
+    id_departamento VARCHAR(10) NOT NULL, 
+    id_cargo VARCHAR(10) NOT NULL,        
     salario NUMERIC(10, 2) NOT NULL,
     tipo_contrato SMALLINT NOT NULL,
     creado DATE NOT NULL,
@@ -79,14 +81,13 @@ CREATE TABLE usuario (
     nombre VARCHAR(100) NOT NULL,
     correo VARCHAR(150) UNIQUE NOT NULL,
     documento VARCHAR(20) UNIQUE NOT NULL,
-    id_trabajador INT UNIQUE , -- Campo para la FK
+    id_trabajador INT UNIQUE , 
     rol VARCHAR(20) NOT NULL,
     contrasena VARCHAR(255) NOT NULL,
     estado SMALLINT NOT NULL DEFAULT 1,
     creado TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_rol_valido CHECK (rol IN ('administrador', 'usuario')),
     CONSTRAINT check_estado_usuario_valido CHECK (estado IN (0, 1)),
-    -- FK que sí puede ser definida en línea
     CONSTRAINT fk_trabajador_usuario
         FOREIGN KEY (id_trabajador)
         REFERENCES trabajador(id_trabajador)
@@ -96,7 +97,7 @@ CREATE TABLE usuario (
 CREATE TABLE nomina_general (
     id_nomina VARCHAR(20) PRIMARY KEY,
     periodo DATE NOT NULL,
-    id_departamento VARCHAR(10) NOT NULL, -- Campo para la FK
+    id_departamento VARCHAR(10) NOT NULL, 
     fecha_pago DATE NOT NULL,
     presupuesto_utilizado NUMERIC(15, 2) NOT NULL DEFAULT 0,
     impuesto_renta_total NUMERIC(10, 2) NOT NULL DEFAULT 0,
@@ -113,8 +114,8 @@ CREATE TABLE nomina_general (
 -- 1F. TABLA: nomina_detalle (Detalle de Pago por Trabajador)
 CREATE TABLE nomina_detalle (
     id_detalle_nomina VARCHAR(20) PRIMARY KEY,
-    id_nomina VARCHAR(20) NOT NULL,    -- Campo para la FK
-    id_trabajador INT NOT NULL,        -- Campo para la FK
+    id_nomina VARCHAR(20) NOT NULL,    
+    id_trabajador INT NOT NULL,        
     salario_base NUMERIC(10, 2) NOT NULL,
     total_remuneraciones NUMERIC(10, 2) NOT NULL DEFAULT 0,
     total_deducciones NUMERIC(10, 2) NOT NULL DEFAULT 0,
@@ -131,7 +132,7 @@ CREATE TABLE nomina_detalle (
 -- 1G. TABLA: concepto_nomina (Remuneraciones/Deducciones Específicas)
 CREATE TABLE concepto_nomina (
     id_concepto SERIAL PRIMARY KEY,
-    id_detalle_nomina VARCHAR(20) NOT NULL, -- Campo para la FK
+    id_detalle_nomina VARCHAR(20) NOT NULL, 
     razon VARCHAR(100) NOT NULL,
     monto NUMERIC(10, 2) NOT NULL,
     tipo SMALLINT NOT NULL, -- 0: Remuneración, 1: Deducción
@@ -147,7 +148,13 @@ CREATE TABLE concepto_nomina (
 -- PASO 2: AÑADIR CLAVES FORÁNEAS FALTANTES (DEPENDENCIAS)
 -- ######################################################################
 
--- 2A. Añadir FKs a trabajador (que referencia a departamento y cargos)
+-- 2A. Añadir FK a cargos (referencia a departamento)
+ALTER TABLE cargos
+ADD CONSTRAINT fk_departamento_cargo
+FOREIGN KEY (id_departamento)
+REFERENCES departamento(id_departamento);
+
+-- 2B. Añadir FKs a trabajador (que referencia a departamento y cargos)
 ALTER TABLE trabajador
 ADD CONSTRAINT fk_departamento
 FOREIGN KEY (id_departamento)
@@ -157,7 +164,6 @@ ALTER TABLE trabajador
 ADD CONSTRAINT fk_cargo
 FOREIGN KEY (id_cargo)
 REFERENCES cargos(id_cargo);
-
 
 -- 2C. Añadir FK a nomina_general
 ALTER TABLE nomina_general

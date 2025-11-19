@@ -32,6 +32,7 @@ class UsuarioOut(BaseModel):
     correo: str
     documento: str
     id_trabajador: Optional[int] = None   # <-- ahora opcional
+    nombre_t_trabajador: Optional[str] = None  # <-- nuevo campo opcional
     rol: str
     estado: int
     creado: datetime
