@@ -8,8 +8,15 @@ from fastapi import FastAPI, Request
 # Si está en Railway, esta será la URL de la red privada.
 # Si está localmente, usará el valor 'postgresql://postgres:2005@localhost:5432/nominas'
 # que es el valor que tienes actualmente en tu .env local.
-DB_DSN = os.getenv("DATABASE_URL", "postgresql://postgres:2005@localhost:5432/nominas")
+# app/db/connection.py
+DB_DSN = os.getenv("DATABASE_URL") 
 
+if not DB_DSN:
+    # Esto forzará un error si la variable no existe, 
+    # para que sepas que Railway no la está inyectando.
+    raise EnvironmentError("La variable de entorno DATABASE_URL no está configurada.")
+
+# El resto del código se queda igual...
 async def connect_to_db(app: FastAPI):
     """Crea un pool de conexiones asyncpg y lo guarda en app.state.db_pool"""
     print(f"Conectando a la base de datos con DSN: {DB_DSN.split('@')[-1]}")
