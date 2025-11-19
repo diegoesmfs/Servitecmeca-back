@@ -1,4 +1,3 @@
-# controllers/departamento_controller.py (FINAL)
 from typing import List, Optional
 import asyncpg
 from asyncpg.exceptions import UniqueViolationError, CheckViolationError, NotNullViolationError
@@ -6,14 +5,26 @@ from asyncpg.exceptions import UniqueViolationError, CheckViolationError, NotNul
 from app.schemas.departamento import DepartamentoCreate, DepartamentoUpdate
 from app.models.departamento import Departamento
 
+# Bloque de selección común para incluir al jefe (JOIN con trabajador)
+SELECT_DEPARTAMENTO_BASE = """
+    SELECT 
+        d.*, 
+        t.nombre AS nombre_jefe, 
+        t.apellido AS apellido_jefe
+    FROM 
+        departamento d
+    LEFT JOIN 
+        trabajador t ON d.jefe_departamento = t.id_trabajador
+"""
+
 # --- 1. Crear Departamento ---
 async def create_departamento(conn: asyncpg.Connection, dep_in: DepartamentoCreate) -> Optional[Departamento]:
-    query = """
+    insert_query = """
     INSERT INTO departamento (
         id_departamento, nombre, descripcion, jefe_departamento, 
         presupuesto_anual, telefono, email, ubicacion, capacidad_empleados, estado
     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-    RETURNING *;
+    RETURNING id_departamento;
     """
     
     values = (
@@ -23,9 +34,10 @@ async def create_departamento(conn: asyncpg.Connection, dep_in: DepartamentoCrea
     )
     
     try:
-        record = await conn.fetchrow(query, *values)
-        if record:
-            return Departamento.from_record(record)
+        inserted_id = await conn.fetchval(insert_query, *values)
+        if inserted_id:
+            # Obtener el registro completo con el JOIN
+            return await get_departamento_by_id(conn, inserted_id) 
     except UniqueViolationError:
         raise ValueError("Error de unicidad: ID, nombre o jefe_departamento ya existe.")
     except (CheckViolationError, NotNullViolationError) as e:
@@ -38,28 +50,25 @@ async def list_departamentos(
     conn: asyncpg.Connection, 
     skip: int = 0, 
     limit: int = 100,
-    activo: Optional[bool] = None # Si es None, trae todos. True=solo activos(1), False=solo inactivos(0)
+    activo: Optional[bool] = None 
 ) -> List[Departamento]:
-    """Retorna la lista de departamentos, con paginación y filtro por estado."""
     
     where_clauses = []
     values = []
     param_index = 1
     
-    # Filtro por Estado
     if activo is not None:
         estado_val = 1 if activo else 0
-        where_clauses.append(f"estado = ${param_index}")
+        where_clauses.append(f"d.estado = ${param_index}")
         values.append(estado_val)
         param_index += 1
 
     where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-    # Paginación (LIMIT y OFFSET)
     query = f"""
-    SELECT * FROM departamento 
+    {SELECT_DEPARTAMENTO_BASE} 
     {where_sql} 
-    ORDER BY nombre 
+    ORDER BY d.nombre 
     LIMIT ${param_index} 
     OFFSET ${param_index + 1};
     """
@@ -70,7 +79,8 @@ async def list_departamentos(
 
 # --- 3. Obtener un Departamento por ID ---
 async def get_departamento_by_id(conn: asyncpg.Connection, dep_id: str) -> Optional[Departamento]:
-    query = "SELECT * FROM departamento WHERE id_departamento = $1;"
+    # 🌟 Consulta con LEFT JOIN
+    query = f"{SELECT_DEPARTAMENTO_BASE} WHERE d.id_departamento = $1;"
     record = await conn.fetchrow(query, dep_id)
     return Departamento.from_record(record) if record else None
 
@@ -78,7 +88,8 @@ async def get_departamento_by_id(conn: asyncpg.Connection, dep_id: str) -> Optio
 async def update_departamento(conn: asyncpg.Connection, dep_id: str, dep_in: DepartamentoUpdate) -> Optional[Departamento]:
     update_data = dep_in.model_dump(exclude_unset=True)
     if not update_data:
-        return await get_departamento_by_id(conn, dep_id)
+        # Si no hay datos, obtenemos el registro actual con el nombre del jefe.
+        return await get_departamento_by_id(conn, dep_id) 
         
     set_clauses = []
     values = []
@@ -91,17 +102,18 @@ async def update_departamento(conn: asyncpg.Connection, dep_id: str, dep_in: Dep
 
     values.append(dep_id)
     
-    query = f"""
+    update_query = f"""
     UPDATE departamento 
     SET {', '.join(set_clauses)}
     WHERE id_departamento = ${param_index}
-    RETURNING *;
+    RETURNING id_departamento;
     """
 
     try:
-        record = await conn.fetchrow(query, *values)
-        if record:
-            return Departamento.from_record(record)
+        updated_id = await conn.fetchval(update_query, *values)
+        if updated_id:
+             # Obtener el registro completo con JOIN.
+            return await get_departamento_by_id(conn, updated_id) 
         return None
     except UniqueViolationError:
         raise ValueError("Error de unicidad: El nombre o jefe_departamento ya están en uso.")

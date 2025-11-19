@@ -1,4 +1,5 @@
 # models/departamento.py
+
 from datetime import datetime
 from typing import Optional
 import asyncpg
@@ -10,6 +11,8 @@ class Departamento:
                  nombre: str, 
                  descripcion: Optional[str], 
                  jefe_departamento: Optional[int], 
+                 # 🌟 NUEVO PARÁMETRO
+                 nombre_jefe_departamento: Optional[str],
                  presupuesto_anual: float, 
                  telefono: Optional[str], 
                  email: Optional[str], 
@@ -22,6 +25,8 @@ class Departamento:
         self.nombre = nombre
         self.descripcion = descripcion
         self.jefe_departamento = jefe_departamento
+        # 🌟 NUEVO ATRIBUTO
+        self.nombre_jefe_departamento = nombre_jefe_departamento
         self.presupuesto_anual = presupuesto_anual
         self.telefono = telefono
         self.email = email
@@ -33,11 +38,20 @@ class Departamento:
     @classmethod
     def from_record(cls, record: asyncpg.Record):
         """Convierte un asyncpg.Record en una instancia de Departamento."""
+        # Se asume que el nombre del jefe viene como 'nombre_jefe' o None.
+        nombre_jefe = record.get("nombre_jefe")
+        if nombre_jefe and record.get("apellido_jefe"):
+            nombre_completo = f"{record['nombre_jefe']} {record['apellido_jefe']}"
+        else:
+            nombre_completo = None
+
         return cls(
             id_departamento=record["id_departamento"],
             nombre=record["nombre"],
             descripcion=record["descripcion"],
             jefe_departamento=record["jefe_departamento"],
+            # 🌟 SE ASIGNA EL NOMBRE DEL JEFE
+            nombre_jefe_departamento=nombre_completo,
             presupuesto_anual=float(record["presupuesto_anual"]),
             telefono=record["telefono"],
             email=record["email"],

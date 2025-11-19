@@ -1,10 +1,13 @@
-# routes/trabajador.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+# 🌟 Importaciones necesarias para PDF
+from fastapi.responses import Response 
+from app.controllers import pdf_controller 
+from app.controllers.pdf_controller import PDFColumn 
+# ------------------------------------
 import asyncpg
 from typing import List, Optional
 from app.schemas.trabajador import TrabajadorCreate, TrabajadorUpdate, TrabajadorOut
 from app.controllers import trabajador_controller
-# Asegúrate de que esta ruta sea correcta para tu proyecto:
 from app.db.connection import get_connection 
 
 router = APIRouter(prefix="/trabajadores", tags=["Trabajadores"])
@@ -34,6 +37,83 @@ async def list_all_trabajadores(
     return await trabajador_controller.list_trabajadores(
         conn, skip=skip, limit=limit, activo=activo, id_departamento=id_departamento
     )
+
+# 🌟🌟🌟 NUEVA RUTA: Generar PDF de Trabajadores 🌟🌟🌟
+@router.get("/imprimir/pdf", response_class=Response)
+async def get_trabajadores_pdf(
+    conn: asyncpg.Connection = Depends(get_connection),
+    activo: Optional[bool] = Query(None, description="Filtrar por estado."),
+    id_departamento: Optional[str] = Query(None, description="Filtrar por ID de Departamento.")
+):
+    """
+    Genera y devuelve un informe PDF con la lista de trabajadores, filtrada por estado y/o departamento.
+    """
+    try:
+        # 1. Obtener la lista de trabajadores
+        trabajadores = await trabajador_controller.list_trabajadores(
+            conn, 
+            skip=0, 
+            limit=1000000, 
+            activo=activo, 
+            id_departamento=id_departamento
+        )
+        
+        if not trabajadores:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron trabajadores con esos filtros.")
+
+        # 2. Convertir los objetos a una lista de diccionarios
+        data_to_print = [
+            TrabajadorOut.model_validate(trb).model_dump(mode='json', by_alias=True) 
+            for trb in trabajadores
+        ]
+        
+        # 3. Definición de las columnas para el reporte (A3 Landscape = ~400mm de ancho útil)
+        columns_definition = [
+            PDFColumn(key='id_trabajador', header='ID', width=15, align='C'),
+            PDFColumn(key='documento', header='Doc.', width=25, align='L'),
+            PDFColumn(key='nombre', header='Nombre', width=20, align='L'),
+            PDFColumn(key='apellido', header='Apellido', width=20, align='L'),
+            PDFColumn(key='nombre_departamento', header='Departamento', width=25, align='L'),
+            PDFColumn(key='titulo_cargo', header='Cargo', width=25, align='L'),
+            PDFColumn(key='correo', header='Email', width=40, align='L'),
+            PDFColumn(key='telefono', header='Teléfono', width=30, align='L'),
+            PDFColumn(key='salario', header='Salario', width=30, align='R', 
+                      formatter=lambda v: f"${v:,.2f}" if v is not None else '$0.00'), # Salario es Decimal
+            PDFColumn(key='creado', header='F. Ingreso', width=25, align='C',
+                      formatter=lambda v: str(v).split('T')[0] if v else 'N/A'), # Creado es date
+            PDFColumn(key='estado', header='Est.', width=15, align='C',
+                      formatter=lambda v: "ACTIVO" if v == 1 else "INACTIVO"),
+        ]
+        # Suma total de anchos: 15+25+40+40+45+35+50+30+30+25+15 = 350 mm. Cabe en A3 (420mm - márgenes)
+        
+        estado_texto = "ACTIVOS" if activo is True else "INACTIVOS" if activo is False else "TODOS"
+        filter_texto = f" | Depto: {id_departamento}" if id_departamento else ""
+        report_title = f"LISTADO DE TRABAJADORES ({estado_texto}{filter_texto})"
+
+        # 4. Generar el contenido binario del PDF
+        pdf_content = await pdf_controller.generate_generic_pdf(
+            data=data_to_print, 
+            columns=columns_definition,
+            report_title=report_title
+        )
+
+        # 5. Devolver el PDF
+        filename = "reporte_trabajadores.pdf"
+        
+        return Response(
+            content=pdf_content, 
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Error al generar el PDF: {e}"
+        )
+
 
 # GET /trabajadores/{id}
 @router.get("/{trb_id}", response_model=TrabajadorOut)

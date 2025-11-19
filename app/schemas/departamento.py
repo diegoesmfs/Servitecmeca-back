@@ -1,4 +1,5 @@
 # schemas/departamento.py
+
 from pydantic import BaseModel, Field, EmailStr
 from typing import Optional
 from datetime import datetime
@@ -31,6 +32,8 @@ class DepartamentoOut(BaseModel):
     nombre: str
     descripcion: Optional[str]
     jefe_departamento: Optional[int]
+    # 🌟 NUEVO CAMPO AGREGADO
+    nombre_jefe_departamento: Optional[str] 
     presupuesto_anual: float
     telefono: Optional[str]
     email: Optional[str]
