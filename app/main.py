@@ -12,6 +12,7 @@ from app.routes import nominas_detalles as NominaDetalle_router
 from app.routes import cargos as Cargos_router
 from app.routes import concepto_nomina as ConceptoNomina_router
 from app.routes import dashboard as Dashboard_router  
+from app.routes import backup_restore as backup_restore_router
 from app.db.connection import connect_to_db, disconnect_from_db # Mantener importaciones
 
 # 🌟 1. DEFINIR EL GESTOR DE CONTEXTO ASÍNCRONO (LIFESPAN)
@@ -60,3 +61,4 @@ app.include_router(NominaGeneral_router.router, prefix="/api/v1", tags=["Nómina
 app.include_router(NominaDetalle_router.router, prefix="/api/v1", tags=["Nóminas Detalles"]) 
 app.include_router(ConceptoNomina_router.router, prefix="/api/v1", tags=["Conceptos Nómina"])   
 app.include_router(Dashboard_router.router, prefix="/api/v1", tags=["Dashboard"]) 
+app.include_router(backup_restore_router.router, prefix="/api/v1", tags=["System & Data Management"])
