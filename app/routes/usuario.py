@@ -1,5 +1,9 @@
-# routes/usuario.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+# 🌟 Importaciones para PDF
+from fastapi.responses import Response
+from app.controllers import pdf_controller 
+from app.controllers.pdf_controller import PDFColumn 
+# -------------------------
 import asyncpg
 from typing import List, Optional
 from app.schemas.usuario import LoginResponse, UsuarioCreate, UsuarioUpdate, UsuarioOut, UsuarioLogin, TokenResponse
@@ -35,6 +39,78 @@ async def list_all_usuarios(
 ):
     """Obtiene la lista de usuarios con opciones de paginación y filtro por estado."""
     return await usuario_controller.list_usuarios(conn, skip=skip, limit=limit, activo=activo)
+
+# 🌟🌟🌟 NUEVA RUTA: Generar PDF de Usuarios 🌟🌟🌟
+@router.get("/imprimir/pdf", response_class=Response)
+async def get_usuarios_pdf(
+    conn: asyncpg.Connection = Depends(get_connection),
+    activo: Optional[bool] = Query(None, description="Filtrar por estado.")
+):
+    """
+    Genera y devuelve un informe PDF con la lista de usuarios, filtrada por estado.
+    """
+    try:
+        # 1. Obtener la lista de usuarios
+        usuarios = await usuario_controller.list_usuarios(
+            conn, 
+            skip=0, 
+            limit=1000000, 
+            activo=activo
+        )
+        
+        if not usuarios:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No se encontraron usuarios con esos filtros.")
+
+        # 2. Convertir los objetos a una lista de diccionarios
+        # Importante: Utilizamos el esquema UsuarioOut para serializar y obtener los campos enriquecidos (como nombre_t_trabajador)
+        data_to_print = [
+            UsuarioOut.model_validate(usr).model_dump(mode='json', by_alias=True) 
+            for usr in usuarios
+        ]
+        
+        # 3. Definición de las columnas para el reporte (A3 Landscape = ~400mm de ancho útil)
+        columns_definition = [
+            PDFColumn(key='id_usuario', header='ID', width=15, align='C'),
+            PDFColumn(key='nombre', header='Nombre Usuario', width=40, align='L'),
+            PDFColumn(key='documento', header='Documento', width=30, align='L'),
+            PDFColumn(key='correo', header='Correo Electrónico', width=60, align='L'),
+            PDFColumn(key='rol', header='Rol', width=25, align='C'),
+            PDFColumn(key='nombre_t_trabajador', header='Trabajador Asignado', width=60, align='L',
+                      formatter=lambda v: str(v) if v else 'N/A'),
+            PDFColumn(key='creado', header='F. Creación', width=30, align='C',
+                      formatter=lambda v: str(v).split('T')[0] if v else 'N/A'),
+            PDFColumn(key='estado', header='Estado', width=20, align='C',
+                      formatter=lambda v: "ACTIVO" if v == 1 else "INACTIVO"),
+        ]
+        # Suma total de anchos: 15+40+30+60+25+60+30+20 = 280 mm.
+        
+        estado_texto = "ACTIVOS" if activo is True else "INACTIVOS" if activo is False else "TODOS"
+        report_title = f"LISTADO DE USUARIOS ({estado_texto})"
+
+        # 4. Generar el contenido binario del PDF
+        pdf_content = await pdf_controller.generate_generic_pdf(
+            data=data_to_print, 
+            columns=columns_definition,
+            report_title=report_title
+        )
+
+        # 5. Devolver el PDF
+        filename = "reporte_usuarios.pdf"
+        
+        return Response(
+            content=pdf_content, 
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f"Error al generar el PDF: {e}"
+        )
+
 
 # GET /usuarios/{id}
 @router.get("/{usr_id}", response_model=UsuarioOut)
@@ -128,4 +204,3 @@ async def login_for_access_token(user_in: UsuarioLogin, conn: asyncpg.Connection
         "token_type": "bearer",
         
     }
-

@@ -81,7 +81,7 @@ async def get_trabajadores_pdf(
                       formatter=lambda v: f"${v:,.2f}" if v is not None else '$0.00'), # Salario es Decimal
             PDFColumn(key='creado', header='F. Ingreso', width=25, align='C',
                       formatter=lambda v: str(v).split('T')[0] if v else 'N/A'), # Creado es date
-            PDFColumn(key='estado', header='Est.', width=15, align='C',
+            PDFColumn(key='estado', header='Estado', width=20, align='C',
                       formatter=lambda v: "ACTIVO" if v == 1 else "INACTIVO"),
         ]
         # Suma total de anchos: 15+25+40+40+45+35+50+30+30+25+15 = 350 mm. Cabe en A3 (420mm - márgenes)
