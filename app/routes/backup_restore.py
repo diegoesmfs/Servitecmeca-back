@@ -1,8 +1,9 @@
 # app/routes/backup_restore.py
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 import asyncpg
+# Asegúrate de tener la conexión correcta
 from app.db.connection import get_connection 
 from app.controllers import backup_restore_controller
 from typing import Dict, Any
@@ -14,8 +15,7 @@ router = APIRouter(prefix="/system", tags=["System & Data Management"])
 @router.get("/backup", response_class=Response)
 async def create_backup(conn: asyncpg.Connection = Depends(get_connection)):
     """
-    Genera un archivo CSV con los datos de las tablas principales (departamento, cargos, 
-    nomina_general, trabajador, usuario) para copia de seguridad.
+    Genera un archivo CSV con los datos de las tablas principales para copia de seguridad.
     """
     try:
         csv_content = await backup_restore_controller.generate_backup_csv(conn)
@@ -28,7 +28,6 @@ async def create_backup(conn: asyncpg.Connection = Depends(get_connection)):
             media_type="text/csv",
             headers={
                 "Content-Disposition": f"attachment; filename={filename}",
-                # Necesario para que el navegador pueda acceder al nombre del archivo
                 "Access-Control-Expose-Headers": "Content-Disposition"
             }
         )
@@ -39,7 +38,7 @@ async def create_backup(conn: asyncpg.Connection = Depends(get_connection)):
             detail=f"Error al generar el archivo de copia de seguridad: {e}"
         )
 
-# 2. RUTA DE RESTORE (POST)
+# 2. RUTA DE RESTORE (POST) - ¡SOLUCIÓN FINAL: SIN TRANSACCIÓN ATÓMICA!
 @router.post("/restore/backups", status_code=status.HTTP_207_MULTI_STATUS)
 async def restore_from_backup(
     file: UploadFile = File(...), 
@@ -47,7 +46,7 @@ async def restore_from_backup(
 ) -> Dict[str, Any]:
     """
     Restaura los datos de un archivo CSV de copia de seguridad. 
-    Inserta nuevas filas si no existen (por ID manual o clave única); salta si es duplicado.
+    Permite que la restauración continúe aunque fallen filas individuales.
     """
     if file.content_type not in ["text/csv", "application/vnd.ms-excel"]:
         raise HTTPException(
@@ -58,16 +57,17 @@ async def restore_from_backup(
     try:
         csv_content = await file.read()
         
-        # Inicia la restauración
-        results = await conn.transaction(backup_restore_controller.restore_data_from_csv, csv_content)
-        # conn.transaction asegura que si hay un error en cualquier tabla, se revierte todo (ROLLBACK)
-
-        # Chequear si hubo errores de inserción
+        # ❌ BLOQUE 'async with conn.transaction():' ELIMINADO.
+        # Esto permite que la restauración continúe si una sola fila falla (ON CONFLICT).
+        results = await backup_restore_controller.restore_data_from_csv(conn, csv_content)
+        
         if results.get("errors"):
-            raise HTTPException(
+            return JSONResponse(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail="Hubo errores de validación de datos (Claves Foráneas, Tipos) durante la restauración.",
-                headers={"X-Restore-Errors": "Ver cuerpo de respuesta para detalles."}
+                content={
+                    "detail": "Hubo errores de validación (Claves Foráneas/Tipos) durante la restauración, pero se restauró la data válida. Revise el campo 'results' para más detalles.",
+                    "results": results 
+                }
             )
         
         return results
